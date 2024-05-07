@@ -1,5 +1,6 @@
 package com.example.master;
 
+import com.example.master.zookeeper.Client;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
@@ -8,6 +9,7 @@ public class MasterApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(MasterApplication.class, args);
+		Client client = Client.getInstance();
+		client.connect();
 	}
-
 }
