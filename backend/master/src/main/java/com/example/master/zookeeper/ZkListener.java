@@ -48,7 +48,7 @@ public class ZkListener {
      *
      */
     public void listenMaster() {
-        String path = prefix + "/master";
+        String path = prefix + Paths.MASTER.getPath();
         try {
             NodeCache nodeCache = new NodeCache(zkClient, path);
             nodeCache.getListenable().addListener(() -> {
@@ -70,7 +70,7 @@ public class ZkListener {
     }
 
     public void listenSlaves() {
-        String path = prefix + "/slaves";
+        String path = prefix + Paths.SLAVE.getPath();
         try {
             TreeCache treeCache = new TreeCache(zkClient, path);
             treeCache.getListenable().addListener((curator, event) -> {
@@ -84,7 +84,7 @@ public class ZkListener {
     }
 
     public void listenTables() {
-        String path = prefix + "/tables";
+        String path = prefix + Paths.TABLE.getPath();
         try {
             TreeCache treeCache = new TreeCache(zkClient, path);
             treeCache.getListenable().addListener((curator, event) -> {

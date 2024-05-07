@@ -5,11 +5,12 @@ import lombok.Getter;
 @Getter
 enum Paths {
     MASTER("/master"),
-    SLAVE("/slave");
+    SLAVE("/slaves"),
+    TABLE("/tables");
 
-    private final String value;
+    private final String path;
 
-    Paths(String value) {
-        this.value = value;
+    Paths(String path) {
+        this.path = path;
     }
 }
