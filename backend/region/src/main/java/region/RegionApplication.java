@@ -29,7 +29,6 @@ public class RegionApplication {
     @Value("${region.maxServers}")
     private int maxServers;
 
-    @Autowired
     private static Zookeeper zookeeper;
 
 
