@@ -1,6 +1,5 @@
 package com.example.master.zookeeper;
 
-import com.example.master.utils.StaticResourcesLoader;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -11,30 +10,49 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Vector;
 
-public class Client {
-    private static final Logger logger = LoggerFactory.getLogger(Client.class);
+public class ZkClient {
+    private static final Logger logger = LoggerFactory.getLogger(ZkClient.class);
 
-    private Client() {
-        zkServers = StaticResourcesLoader.loadZkServers();
+    private ZkClient() {
+        zkServers = ZkConfigs.zkServers;
+        metadata = Metadata.getInstance();
     }
 
-    private static Client instance;
+    private static ZkClient instance;
 
-    public static Client getInstance() {
+    public static ZkClient getInstance() {
         if (instance == null) {
-            instance = new Client();
+            instance = new ZkClient();
         }
         return instance;
     }
 
     // Zookeeper 服务器的地址列表
     private final Vector<String> zkServers;
+    private final Metadata metadata;
     private CuratorFramework zkClient;
 
-    public void connect() {
+    public void init() {
+        connect();
+        initMetadata();
+    }
+
+    private void connect() {
         RetryPolicy retryPolicy = new ExponentialBackoffRetry(3000, 1);
         this.zkClient = CuratorFrameworkFactory.newClient(String.join(",", zkServers), 5000, 5000, retryPolicy);
         this.zkClient.start();
+    }
+
+    private void initMetadata() {
+        for (int i = 0; i < ZkConfigs.MAX_REGION; i++) {
+            Metadata.RegionMetadata regionMetadata = new Metadata.RegionMetadata();
+            String prefix = String.format("/region_%d", i + 1);
+            ZkListener zkListener = new ZkListener(zkClient, prefix, regionMetadata);
+            zkListener.listenMaster(); // Listen to master ZNode
+            zkListener.listenTables(); // Listen to tables ZNode and its child nodes
+            zkListener.listenSlaves(); // Listen to slaves ZNode and its child nodes
+            metadata.getData().add(regionMetadata);
+        }
     }
 
     // 创建含数据节点
@@ -60,5 +78,14 @@ public class Client {
             logger.error(e.getMessage());
         }
         return isExsit;
+    }
+
+    public void disconnect() {
+        if (zkClient != null) {
+            zkClient.close();
+            zkClient = null;
+        } else {
+            logger.info("zkClient is null, no close operation for zkClient is needed.");
+        }
     }
 }
