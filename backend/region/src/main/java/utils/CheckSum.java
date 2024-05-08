@@ -20,14 +20,14 @@ import java.util.zip.CRC32;
  */
 
 public class CheckSum extends CRC32 {
-    DataSource dataSource;
+    DatabaseConnection databaseConnection;
     Connection conn;
 
-    public CheckSum(DataSource dataSource) {
-        this.dataSource = dataSource;
+    public CheckSum(DatabaseConnection databaseConnection) {
+        this.databaseConnection = databaseConnection;
         try{
-            this.conn = dataSource.getConnection();
-        } catch(SQLException e){
+            this.conn = databaseConnection.getConnection();
+        } catch(Exception e){
             System.out.println("Failed to connect to database in CheckSum");
         }
     }

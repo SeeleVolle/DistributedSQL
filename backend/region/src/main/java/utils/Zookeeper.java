@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static java.lang.System.exit;
+
 /**
  * @projectName: region
  * @package: utils
@@ -65,7 +67,18 @@ public class Zookeeper {
                 .connectionTimeoutMs(10000)
                 .build();
         client.start();
-        System.out.println("Connected successfully");
+        try{
+            String testStr = new String(client.getData().forPath("/test"));
+            if(!testStr.equals("hello")){
+                System.out.println("Error: Zookeeper connection failed");
+                exit(1);
+            }
+            System.out.println("Connected successfully");
+        }catch(Exception e){
+            System.out.println("Error: Zookeeper connection failed");
+            exit(1);
+        }
+
         initzk();
     }
 
@@ -143,12 +156,13 @@ public class Zookeeper {
 
     public void WriteTableMeta(){
         try{
+            client.create().withMode(CreateMode.PERSISTENT).forPath("/region" + regionID  + "/tables");
             Connection conn = databaseConnection.getConnection();
             PreparedStatement ps = conn.prepareStatement("show tables");
             ResultSet rs = ps.executeQuery();
             while(rs.next()){
                 String tableName = rs.getString(1);
-                client.create().withMode(CreateMode.EPHEMERAL).forPath("/region" + regionID + "/table" + tableName, tableName.getBytes());
+                client.create().withMode(CreateMode.EPHEMERAL).forPath("/region" + regionID + "/tables/" + tableName, tableName.getBytes());
             }
         }catch(Exception e){
             System.out.println("Error: Master can't write table meta to zkserver");
@@ -157,7 +171,7 @@ public class Zookeeper {
 
     public void addTable(String name){
         try{
-            client.create().withMode(CreateMode.EPHEMERAL).forPath("/region" + regionID + "/table" + name, name.getBytes());
+            client.create().withMode(CreateMode.EPHEMERAL).forPath("/region" + regionID + "/tables/" + name, name.getBytes());
         }catch(Exception e){
             System.out.println("Error: Master can't add table information to zkserver");
         }
@@ -165,7 +179,7 @@ public class Zookeeper {
 
     public boolean isTableExist(String name){
         try{
-            if(client.checkExists().forPath("/region" + regionID + "/table" + name) != null){
+            if(client.checkExists().forPath("/region" + regionID + "/tables/" + name) != null){
                 return true;
             }
         }catch(Exception e){
@@ -176,7 +190,7 @@ public class Zookeeper {
 
     public void removeTable(String name){
         try{
-            client.delete().forPath("/region" + regionID + "/table" + name);
+            client.delete().forPath("/region" + regionID + "/tables/" + name);
         }catch(Exception e){
             System.out.println("Error: Master can't delete table information to zkserver");
         }
@@ -244,7 +258,7 @@ public class Zookeeper {
     }
 
 
-    public void disconnect(){
+    public void close(){
         System.out.println("Region server " + localaddr + " is disconneting to zkServer: "+ zkServerAddr + " ......");
         if(client != null){
             //1. 更新zk信息
