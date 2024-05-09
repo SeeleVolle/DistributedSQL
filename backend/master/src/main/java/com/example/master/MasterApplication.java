@@ -51,6 +51,7 @@ public class MasterApplication {
     @Scheduled(fixedRate = 10000)
     public void hotPointChecker() {
         logger.info("Checking hot point");
+
     }
 
 }
