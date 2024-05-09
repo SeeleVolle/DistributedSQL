@@ -19,29 +19,29 @@ import java.util.List;
 public class ZkListener {
     private static final Logger logger = LoggerFactory.getLogger(ZkListener.class);
     private final CuratorFramework zkClient;
-    private final String prefix;
+    private final Integer regionId;
     private final Metadata.RegionMetadata regionMetadata;
 
     /**
      * @param zkClient       Instance of ZkClient
-     * @param prefix         It should look like this "/your/path/here"
+     * @param regionId       Region ID
      * @param regionMetadata Instance of RegionMetadata
      */
-    public ZkListener(CuratorFramework zkClient, String prefix, Metadata.RegionMetadata regionMetadata) {
-        this.prefix = prefix;
+    public ZkListener(CuratorFramework zkClient, Integer regionId, Metadata.RegionMetadata regionMetadata) {
+        this.regionId = regionId;
         this.zkClient = zkClient;
         this.regionMetadata = regionMetadata;
     }
 
     /**
-     * @param prefix         It should look like this "/your/path/here"
+     * @param regionId       Region ID
      * @param regionMetadata Instance of RegionMetadata
      */
-    public ZkListener(String prefix, Metadata.RegionMetadata regionMetadata) {
+    public ZkListener(Integer regionId, Metadata.RegionMetadata regionMetadata) {
         List<String> zkServers = ZkConfigs.zkServers;
         RetryPolicy retryPolicy = new ExponentialBackoffRetry(3000, 1);
         this.zkClient = CuratorFrameworkFactory.newClient(String.join(",", zkServers), 5000, 5000, retryPolicy);
-        this.prefix = prefix;
+        this.regionId = regionId;
         this.regionMetadata = regionMetadata;
     }
 
@@ -53,16 +53,16 @@ public class ZkListener {
      * Listen to master node
      */
     public void listenMaster() {
-        String path = prefix + Paths.MASTER.getPath();
+        String path = ZkConfigs.generateRegionPath(regionId) + Paths.MASTER.getPath();
         try {
-            masterListener= new NodeCache(zkClient, path);
+            masterListener = new NodeCache(zkClient, path);
             masterListener.getListenable().addListener(() -> {
                 try {
                     // master 已存在/被创建
                     ChildData childData = masterListener.getCurrentData();
                     String master = new String(childData.getData());
                     regionMetadata.setMaster(master);
-                    logger.info("Master is {} now", master);
+                    logger.info("New master {} at {}.", master, path);
                 } catch (Exception e) {
                     // master 被删除
                     logger.error(e.getMessage());
@@ -81,7 +81,7 @@ public class ZkListener {
      * Listen to slaves node
      */
     public void listenSlaves() {
-        String path = prefix + Paths.SLAVE.getPath();
+        String path = ZkConfigs.generateRegionPath(regionId) + Paths.SLAVE.getPath();
         try {
             slavesListener = new TreeCache(zkClient, path);
             slavesListener.getListenable().addListener((curator, event) -> {
@@ -110,7 +110,7 @@ public class ZkListener {
      * Listen to tables node
      */
     public void listenTables() {
-        String path = prefix + Paths.TABLE.getPath();
+        String path = ZkConfigs.generateRegionPath(regionId) + Paths.TABLE.getPath();
         try {
             tablesListener = new TreeCache(zkClient, path);
             tablesListener.getListenable().addListener((curator, event) -> {

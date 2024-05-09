@@ -7,6 +7,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.util.Vector;
 
@@ -53,8 +54,7 @@ public class ZkClient {
     private void initMetadata() {
         for (int i = 0; i < ZkConfigs.MAX_REGION; i++) {
             Metadata.RegionMetadata regionMetadata = new Metadata.RegionMetadata();
-            String prefix = ZkConfigs.generateRegionPath(i);
-            zkListener = new ZkListener(zkClient, prefix, regionMetadata);
+            zkListener = new ZkListener(zkClient, i, regionMetadata);
             zkListener.listenMaster(); // Listen to master ZNode
             zkListener.listenTables(); // Listen to tables ZNode and its child nodes
             zkListener.listenSlaves(); // Listen to slaves ZNode and its child nodes
@@ -64,6 +64,7 @@ public class ZkClient {
 
     /**
      * 创建ZNode
+     *
      * @param path ZNode路径
      * @param data ZNode数据
      * @throws Exception 创建ZNode失败
@@ -76,6 +77,7 @@ public class ZkClient {
 
     /**
      * 创建无数据节点（默认数据为Client的IP地址）
+     *
      * @param path ZNode路径
      * @throws Exception 创建ZNode失败
      */
@@ -87,6 +89,7 @@ public class ZkClient {
 
     /**
      * 删除ZNode
+     *
      * @param path ZNode路径
      */
     private Boolean pathExist(String path) {

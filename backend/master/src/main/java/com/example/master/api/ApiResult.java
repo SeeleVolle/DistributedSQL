@@ -28,4 +28,26 @@ public class ApiResult {
         this.message = message;
         this.data = data;
     }
+
+    public ApiResult success() {
+        this.code = ApiResultCode.SUCCESS.getCode();
+        this.message = ApiResultCode.SUCCESS.getMessage();
+        return this;
+    }
+
+    public ApiResult failed() {
+        this.code = ApiResultCode.FAILED.getCode();
+        this.message = ApiResultCode.FAILED.getMessage();
+        return this;
+    }
+
+    public ApiResult message(String message) {
+        this.message = message;
+        return this;
+    }
+
+    public ApiResult data(Object data) {
+        this.data = data;
+        return this;
+    }
 }

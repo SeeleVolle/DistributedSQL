@@ -10,10 +10,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.net.InetAddress;
 
 @SpringBootApplication
+@EnableScheduling
 public class MasterApplication {
     public static final Logger logger = LoggerFactory.getLogger(MasterApplication.class);
 
@@ -45,5 +48,9 @@ public class MasterApplication {
         logger.info("Cleanup successfully, disconnected from Zookeeper");
     }
 
+    @Scheduled(fixedRate = 10000)
+    public void hotPointChecker() {
+        logger.info("Checking hot point");
+    }
 
 }
