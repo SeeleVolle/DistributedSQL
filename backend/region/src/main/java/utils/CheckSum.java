@@ -7,6 +7,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.zip.CRC32;
 
 /**
@@ -36,7 +37,7 @@ public class CheckSum extends CRC32 {
         try{
             PreparedStatement ps = conn.prepareStatement("SELECT * FROM " + tableName);
             ResultSet rs = ps.executeQuery();
-            long crc = getCRC4Result(rs);
+            long crc = getCRC4ResultSet(rs);
             return crc;
         }catch(SQLException e){
             System.out.println("Failed to get CRC4Table " + tableName + " in CheckSum");
@@ -44,12 +45,22 @@ public class CheckSum extends CRC32 {
         return 0;
     }
 
-    public long getCRC4Result(ResultSet rs) throws SQLException{
+    public long getCRC4Result(List<Object[]> datalist) throws SQLException{
+        int columns =  datalist.get(0).length;
+        long crc = 0;
+        for(int i = 0; i < datalist.size(); i++){
+            for(int j = 0; j < columns; j++){
+                crc += getCRC32(datalist.get(i)[j].toString());
+            }
+        }
+        return crc;
+    }
+
+    public long getCRC4ResultSet(ResultSet rs) throws SQLException{
         int columns = rs.getMetaData().getColumnCount();
         long crc = 0;
         while(rs.next()){
             for(int i = 1; i <= columns; i++){
-                System.out.println(rs.getString(i));
                 crc += getCRC32(rs.getString(i));
             }
         }
@@ -57,7 +68,6 @@ public class CheckSum extends CRC32 {
 
         return crc;
     }
-
     public long getCRC32(String str){
         CRC32 crc = new CRC32();
         crc.update(str.getBytes());

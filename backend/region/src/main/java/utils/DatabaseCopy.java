@@ -26,12 +26,16 @@ public class DatabaseCopy{
         try{
             Connection sourceConnection = sourceDataSource.getConnection();
             DatabaseMetaData sourceMetaData = sourceConnection.getMetaData();
-            ResultSet sourceTables = sourceMetaData.getTables(null, null, null, new String[]{"TABLE"});
+            PreparedStatement ps = sourceConnection.prepareStatement("show tables");
+            ResultSet sourceTables = ps.executeQuery();
+
             while(sourceTables.next()){
-                String sourceTable = sourceTables.getString("TABLE_NAME");
+                String sourceTable = sourceTables.getString(1);
+                System.out.println("Copying table " + sourceTable + "...");
                 copyTable(sourceTable, sourceTable);
             }
         }catch (Exception e){
+            e.printStackTrace();
             System.out.println("Failed to copy data from source database to target database");
         }
     }
@@ -64,33 +68,37 @@ class TableCopy {
             ResultSet rs = sourceStmt.executeQuery();
             ResultSetMetaData rsmeta = rs.getMetaData();
 
-            PreparedStatement targetStmt_Create = targetConnection.prepareStatement(generateInsertStatment(rsmeta));
+            PreparedStatement targetStmt_Create = targetConnection.prepareStatement(generateCreateStatment(sourceConnection, sourceTable));
             targetStmt_Create.executeUpdate();
 
             int columns = rsmeta.getColumnCount();
-            PreparedStatement targetStmt_Insert = targetConnection.prepareStatement(generateInsertStatment(rsmeta));
             while(rs.next()){
+                PreparedStatement targetStmt_Insert = targetConnection.prepareStatement(generateInsertStatment(rsmeta));
                 for(int i = 1; i <= columns; i++){
                     targetStmt_Insert.setObject(i, rs.getObject(i));
                 }
                 targetStmt_Insert.executeUpdate();
             }
         }catch (Exception e){
-            System.out.println("Failed to copy data from " + sourceTable + " to " + targetTable);
-        }
-    }
-
-    public String generateCreateStatment(ResultSetMetaData metaData) throws SQLException{
-        StringBuilder sb = new StringBuilder();
-        sb.append("CREATE TABLE ").append(targetTable).append(" (");
-        for(int i = 1; i <= metaData.getColumnCount(); i++){
-            sb.append(metaData.getColumnName(i)).append(" ").append(metaData.getColumnTypeName(i));
-            if(i < metaData.getColumnCount()){
-                sb.append(",");
+            if(e.getMessage().contains("already exists")) {
+                System.out.println("Table " + targetTable + " already exists");
+            }
+            else{
+                e.printStackTrace();
+                System.out.println("Failed to copy data from " + sourceTable + " to " + targetTable);
             }
 
         }
-        sb.append(")");
+    }
+
+    public String generateCreateStatment(Connection conn, String Tablename) throws SQLException{
+        StringBuilder sb = new StringBuilder();
+        PreparedStatement stmt = conn.prepareStatement("SHOW CREATE TABLE " + Tablename);
+        ResultSet rs = stmt.executeQuery();
+
+        if(rs.next()){
+            sb.append(rs.getString(2));
+        }
         return sb.toString();
     }
     public String generateInsertStatment(ResultSetMetaData metaData) throws SQLException {

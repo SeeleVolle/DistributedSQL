@@ -11,9 +11,8 @@ import org.apache.zookeeper.CreateMode;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.sql.SQLException;
+import java.util.*;
 
 import static java.lang.System.exit;
 
@@ -75,6 +74,7 @@ public class Zookeeper {
             }
             System.out.println("Connected successfully");
         }catch(Exception e){
+            e.printStackTrace();
             System.out.println("Error: Zookeeper connection failed");
             exit(1);
         }
@@ -98,8 +98,8 @@ public class Zookeeper {
                     if(number < maxServers){
                         //获取ServerID
                         int serverID = 0;
-                        for(int j = 0; j <= number; j++){
-                            if(client.checkExists().forPath("/region" + i + "/slave" + j) == null){
+                        for(int j = 1; j <= number; j++){
+                            if(client.checkExists().forPath("/region" + i + "/slaves/slave" + j) == null){
                                 serverID = j;
                                 break;
                             }
@@ -112,6 +112,7 @@ public class Zookeeper {
                     System.out.println("No available region for this server");
                 }
             }catch(Exception e){
+                e.printStackTrace();
                 System.out.println("Region server " + localaddr + " failed to add to zkserver");
             }
         }
@@ -124,17 +125,21 @@ public class Zookeeper {
         this.isMaster = true;
         client.create().withMode(CreateMode.PERSISTENT).forPath("/region" + regionID);
         client.create().withMode(CreateMode.EPHEMERAL).forPath("/region" + regionID + "/master", localaddr.getBytes());
-        client.create().withMode(CreateMode.EPHEMERAL).forPath("/region" + regionID + "/number", "1".getBytes());
+        client.create().withMode(CreateMode.PERSISTENT).forPath("/region" + regionID + "/number", "1".getBytes());
+        client.create().withMode(CreateMode.PERSISTENT).forPath("/region" + regionID + "/slaves", localaddr.getBytes());
+        client.create().withMode(CreateMode.PERSISTENT).forPath("/region" + regionID  + "/tables");
+
         //2. 拷贝TableMeta到zk中
         WriteTableMeta();
     }
 
     public void masterUpdated(Integer regionID, Integer serverID, String localaddr) throws Exception {
+        System.out.println("Region "+ regionID + " Server "+ serverID +" Trying to be new master...");
         //1. 更新zk中的master信息，number信息, 以及子目录信息
+        this.isMaster = true;
         Integer number = Integer.parseInt(new String(client.getData().forPath("/region" + regionID + "/number")));
         client.create().withMode(CreateMode.EPHEMERAL).forPath("/region" + regionID + "/master", localaddr.getBytes());
-        client.setData().forPath("/region" + regionID + "/number", Integer.valueOf(number - 1).toString().getBytes());
-        client.delete().forPath("/region" + regionID + "/slave" + serverID);
+        client.delete().forPath("/region" + regionID + "/slaves/slave" + serverID);
         //2. 停止对master目录的监听
         masterListener.stoplistening();
     }
@@ -143,28 +148,48 @@ public class Zookeeper {
         this.regionID = regionID;
         this.serverID = serverID;
         //1.更新Zookeeper目录，将自己写入到对应目录，更新server number
-        client.create().withMode(CreateMode.EPHEMERAL).forPath("/region" + regionID + "/slave" + serverID, localaddr.getBytes());
+        client.create().withMode(CreateMode.EPHEMERAL).forPath("/region" + regionID + "/slaves/slave" + serverID, localaddr.getBytes());
         client.setData().forPath("/region" + regionID + "/number", Integer.valueOf(number + 1).toString().getBytes());
         //2.从master处拷贝数据
         this.isMaster = false;
         String masterAddr = new String(client.getData().forPath("/region" + regionID + "/master"));
+        System.out.println("Copy from master db: " + masterAddr+ "...");
+        CLearDB();
         CopyFromRemoteDB(masterAddr);
         //3. 注册master的监听器
         masterListener = new MasterListener();
         masterListener.startlistening();
     }
 
-    public void WriteTableMeta(){
+    public void CLearDB(){
         try{
-            client.create().withMode(CreateMode.PERSISTENT).forPath("/region" + regionID  + "/tables");
             Connection conn = databaseConnection.getConnection();
             PreparedStatement ps = conn.prepareStatement("show tables");
             ResultSet rs = ps.executeQuery();
             while(rs.next()){
                 String tableName = rs.getString(1);
+                System.out.println("Clear table: " + tableName);
+                ps = conn.prepareStatement("drop table " + tableName);
+                ps.executeUpdate();
+            }
+        }catch(Exception e){
+            e.printStackTrace();
+            System.out.println("Error: Region Server can't clear db");
+        }
+    }
+
+    public void WriteTableMeta(){
+        try{
+            Connection conn = databaseConnection.getConnection();
+            PreparedStatement ps = conn.prepareStatement("show tables");
+            ResultSet rs = ps.executeQuery();
+            while(rs.next()){
+                String tableName = rs.getString(1);
+                System.out.println("Write table meta: " + tableName);
                 client.create().withMode(CreateMode.EPHEMERAL).forPath("/region" + regionID + "/tables/" + tableName, tableName.getBytes());
             }
         }catch(Exception e){
+            e.printStackTrace();
             System.out.println("Error: Master can't write table meta to zkserver");
         }
     }
@@ -196,15 +221,17 @@ public class Zookeeper {
         }
     }
 
-    public void CopyFromRemoteTable(String addr, String tablename){
-        DatabaseConnection TargetDatabaseConnection = new DatabaseConnection("jdbc:mysql://"+ addr +":3306/DISTRIBUTED", databaseConnection.getUsername(), databaseConnection.getPassword());
-        TableCopy tableCopy = new TableCopy(databaseConnection, TargetDatabaseConnection, tablename, tablename);
+    public void CopyFromRemoteTable(String addr, String tablename) throws SQLException {
+        DatabaseConnection SourceDatabaseConnection = new DatabaseConnection("jdbc:mysql://"+ addr.substring(0, addr.indexOf(":")) +":3306/DISTRIBUTED", databaseConnection.getUsername(), databaseConnection.getPassword());
+        SourceDatabaseConnection.connect();
+        TableCopy tableCopy = new TableCopy(SourceDatabaseConnection, databaseConnection,  tablename, tablename);
         tableCopy.copy();
     }
 
-    public void CopyFromRemoteDB(String addr){
-        DatabaseConnection TargetDatabaseConnection = new DatabaseConnection("jdbc:mysql://"+ addr +":3306/DISTRIBUTED", databaseConnection.getUsername(), databaseConnection.getPassword());
-        DatabaseCopy databaseCopy = new DatabaseCopy(databaseConnection, TargetDatabaseConnection);
+    public void CopyFromRemoteDB(String addr) throws SQLException {
+        DatabaseConnection SourceDatabaseConnection = new DatabaseConnection("jdbc:mysql://"+ addr.substring(0, addr.indexOf(":")) +":3306/DISTRIBUTED", databaseConnection.getUsername(), databaseConnection.getPassword());
+        SourceDatabaseConnection.connect();
+        DatabaseCopy databaseCopy = new DatabaseCopy(SourceDatabaseConnection, databaseConnection);
         databaseCopy.copy();
     }
 
@@ -246,8 +273,8 @@ public class Zookeeper {
             Integer number = Integer.parseInt(new String(client.getData().forPath("/region" + regionID + "/number")));
             ArrayList<String> list = new ArrayList<String>();
             for(int i = 0; i < number; i++){
-                if(client.checkExists().forPath("/region" + regionID + "/slave" + i) != null){
-                    list.add(new String(client.getData().forPath("/region" + regionID + "/slave" + i)));
+                if(client.checkExists().forPath("/region" + regionID + "/slaves/slave" + i) != null){
+                    list.add(new String(client.getData().forPath("/region" + regionID + "/slaves/slave" + i)));
                 }
             }
             return list;
@@ -262,23 +289,25 @@ public class Zookeeper {
         System.out.println("Region server " + localaddr + " is disconneting to zkServer: "+ zkServerAddr + " ......");
         if(client != null){
             //1. 更新zk信息
-            if(isMaster){
-                try{
-                    client.delete().forPath("/region" + regionID + "/master");
-                }catch(Exception e){
-                    System.out.println("Error: Master can't delete zkserver info");
+            try{
+                Integer number = Integer.parseInt(new String(client.getData().forPath("/region" + regionID + "/number")));
+                if(number - 1 <= 0){
+                    deleteAll("/region" + regionID, client);
                 }
-            }
-            else{
-                try{
-                    Integer number = Integer.parseInt(new String(client.getData().forPath("/region" + regionID + "/number")));
+                else{
                     client.setData().forPath("/region" + regionID + "/number", Integer.valueOf(number - 1).toString().getBytes());
-                    client.delete().forPath("/region" + regionID + "/slave" + serverID);
-                }catch(Exception e){
-                    System.out.println("Error: Slave can't delete zkserver info");
+                    if(isMaster)
+                        client.delete().forPath("/region" + regionID + "/master");
+                    else
+                        client.delete().forPath("/region" + regionID + "/slaves/slave" + serverID);
                 }
+                List<String> children_slave = client.getChildren().forPath("/region" + regionID + "/tables");
+                if(children_slave.size() == 0 && client.checkExists().forPath("/region" + regionID + "/master") == null){
+                    deleteAll("/region" + regionID, client);
+                }
+            }catch (Exception e){
+                System.out.println("Error: Region Server can't delete zkserver info");
             }
-
             //2. 关闭client
             client.close();
             client = null;
@@ -286,10 +315,27 @@ public class Zookeeper {
         System.out.println("Disconnected successfully");
     }
 
+    public void deleteAll(String path, CuratorFramework client) throws Exception {
+        Queue<String> queue = new LinkedList<String>();
+        Stack<String> deletedstack = new Stack<String>();
+
+        queue.add(path);
+        while(!queue.isEmpty()){
+            String nowPath = queue.poll();
+            deletedstack.push(nowPath);
+            List<String> children = client.getChildren().forPath(nowPath);
+            for(String child : children){
+                queue.add(nowPath + "/" + child);
+            }
+        }
+        while(!deletedstack.isEmpty()){
+            String nowPath = deletedstack.pop();
+            client.delete().forPath(nowPath);
+        }
+    }
 
 
     class MasterListener {
-
         private CuratorCache cache;
         MasterListener(){
 
@@ -316,12 +362,9 @@ public class Zookeeper {
                 try{
                     switch (type) {
                         case NODE_CREATED:
-                            System.out.println("Master is created");
                             break;
                         case NODE_CHANGED:
-                            System.out.println("Master is changed");
                             break;
-                        //原master节点下线，尝试成为master
                         case NODE_DELETED:
                             masterUpdated(regionID, serverID, localaddr);
                             break;
