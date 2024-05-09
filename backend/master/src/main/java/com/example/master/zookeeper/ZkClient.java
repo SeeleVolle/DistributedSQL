@@ -7,9 +7,13 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.util.Vector;
 
+/**
+ * ZkClient is a singleton class that manages the connection to Zookeeper and initializes metadata
+ */
 public class ZkClient {
     private static final Logger logger = LoggerFactory.getLogger(ZkClient.class);
 
@@ -31,6 +35,7 @@ public class ZkClient {
     private final Vector<String> zkServers;
     private final Metadata metadata;
     private CuratorFramework zkClient;
+    private ZkListener zkListener;
 
     public void init() {
         connect();
@@ -43,11 +48,13 @@ public class ZkClient {
         this.zkClient.start();
     }
 
+    /**
+     * Initialize metadata for each region and listen to changes in Zookeeper
+     */
     private void initMetadata() {
         for (int i = 0; i < ZkConfigs.MAX_REGION; i++) {
             Metadata.RegionMetadata regionMetadata = new Metadata.RegionMetadata();
-            String prefix = String.format("/region_%d", i + 1);
-            ZkListener zkListener = new ZkListener(zkClient, prefix, regionMetadata);
+            zkListener = new ZkListener(zkClient, i, regionMetadata);
             zkListener.listenMaster(); // Listen to master ZNode
             zkListener.listenTables(); // Listen to tables ZNode and its child nodes
             zkListener.listenSlaves(); // Listen to slaves ZNode and its child nodes
@@ -55,20 +62,36 @@ public class ZkClient {
         }
     }
 
-    // 创建含数据节点
+    /**
+     * 创建ZNode
+     *
+     * @param path ZNode路径
+     * @param data ZNode数据
+     * @throws Exception 创建ZNode失败
+     */
     public void createZNode(String path, String data) throws Exception {
         if (!pathExist(path)) {
             zkClient.create().creatingParentsIfNeeded().forPath(path, data.getBytes());
         }
     }
 
-    // 创建无数据节点（默认数据为Client的IP地址）
+    /**
+     * 创建无数据节点（默认数据为Client的IP地址）
+     *
+     * @param path ZNode路径
+     * @throws Exception 创建ZNode失败
+     */
     public void createZNode(String path) throws Exception {
         if (!pathExist(path)) {
             zkClient.create().creatingParentsIfNeeded().forPath(path);
         }
     }
 
+    /**
+     * 删除ZNode
+     *
+     * @param path ZNode路径
+     */
     private Boolean pathExist(String path) {
         boolean isExsit = false;
         try {
@@ -80,7 +103,16 @@ public class ZkClient {
         return isExsit;
     }
 
+    /**
+     * Disconnect from Zookeeper
+     */
     public void disconnect() {
+        if (zkListener != null) {
+            zkListener.close();
+            zkListener = null;
+        } else {
+            logger.info("zkListener is null, no close operation for zkListener is needed.");
+        }
         if (zkClient != null) {
             zkClient.close();
             zkClient = null;
