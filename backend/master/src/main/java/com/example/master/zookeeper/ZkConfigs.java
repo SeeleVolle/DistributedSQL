@@ -12,4 +12,5 @@ public class ZkConfigs {
     public static String generateRegionPath(int regionId) {
         return String.format("/region%d", regionId);
     }
+    public static int HOTPOINT_THRESHOLD = 1;
 }

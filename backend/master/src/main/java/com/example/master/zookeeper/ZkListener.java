@@ -50,7 +50,7 @@ public class ZkListener {
     private NodeCache masterListener;
 
     /**
-     * Listen to master node
+     * 监听对应Region的master主节点目录
      */
     public void listenMaster() {
         String path = ZkConfigs.generateRegionPath(regionId) + Paths.MASTER.getPath();
@@ -58,13 +58,16 @@ public class ZkListener {
             masterListener = new NodeCache(zkClient, path);
             masterListener.getListenable().addListener(() -> {
                 try {
-                    // master 已存在/被创建
                     ChildData childData = masterListener.getCurrentData();
-                    String master = new String(childData.getData());
-                    regionMetadata.setMaster(master);
-                    logger.info("New master {} at {}.", master, path);
+                    byte[] data = childData.getData();
+                    if (data != null) {
+                        String master = new String(data);
+                        regionMetadata.setMaster(master);
+                        logger.info("New master {} at {}.", master, path);
+                    } else {
+                        logger.warn("Node data at {} is missing.", path);
+                    }
                 } catch (Exception e) {
-                    // master 被删除
                     logger.error(e.getMessage());
                 }
             });
@@ -78,7 +81,7 @@ public class ZkListener {
     }
 
     /**
-     * Listen to slaves node
+     * 监听对应Region下的slaves从节点，如果有slaves增加、减少、改变，都会被检测到，并实时更新到RegionMetadata中
      */
     public void listenSlaves() {
         String path = ZkConfigs.generateRegionPath(regionId) + Paths.SLAVE.getPath();
@@ -86,10 +89,11 @@ public class ZkListener {
             slavesListener = new TreeCache(zkClient, path);
             slavesListener.getListenable().addListener((curator, event) -> {
                 if (event.getType() == TreeCacheEvent.Type.NODE_ADDED && !event.getData().getPath().equals(path)) {
-                    String connectStr = new String(event.getData().getData());
+                    byte[] data = event.getData().getData();
+                    String connectStr = new String(data);
                     regionMetadata.addSlave(connectStr);
                     logger.info("New slave {} at {} is added", connectStr, path);
-                } else if (event.getType() == TreeCacheEvent.Type.NODE_REMOVED) {
+                } else if (event.getType() == TreeCacheEvent.Type.NODE_REMOVED && !event.getData().getPath().equals(path)) {
                     // slaveNode 被删除（更新可用数量与路由信息列表）
                     String connectStr = new String(event.getData().getData());
                     regionMetadata.removeSlave(connectStr);
@@ -105,7 +109,7 @@ public class ZkListener {
     }
 
     /**
-     * Listen to tables node
+     * 如同以上监听方法，唯独不同是监听tables的变化
      */
     public void listenTables() {
         String path = ZkConfigs.generateRegionPath(regionId) + Paths.TABLE.getPath();
@@ -117,7 +121,7 @@ public class ZkListener {
                     String tableName = paths[3];
                     regionMetadata.addTable(tableName);
                     logger.info("New table {} at {} is added", tableName, path);
-                } else if (event.getType() == TreeCacheEvent.Type.NODE_REMOVED) {
+                } else if (event.getType() == TreeCacheEvent.Type.NODE_REMOVED && !event.getData().getPath().equals(path)) {
                     String[] paths = event.getData().getPath().split("/");
                     String tableName = paths[3];
                     regionMetadata.removeTable(tableName);
@@ -133,7 +137,7 @@ public class ZkListener {
     }
 
     /**
-     * Close all listeners
+     * 关闭所有监听。
      */
     public void close() {
         try {

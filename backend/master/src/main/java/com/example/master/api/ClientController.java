@@ -21,12 +21,12 @@ public class ClientController {
 
     @PostMapping("/create_table")
     public ApiResult createTable(@RequestParam(name = "tableName") String tableName) {
-        logger.info("Creating table '{}'", tableName);
+        logger.info("Request create table '{}'", tableName);
         Data data = new Data();
         if (metadata.hasTable(tableName)) {
             return new ApiResult(TABLE_EXIST.getCode(), TABLE_EXIST.getMessage(), data);
         } else if (!metadata.hasWritable()) {
-            return new ApiResult(INTERNAL_SERVER_ERROR.getCode(), INTERNAL_SERVER_ERROR.getMessage(), data);
+            return new ApiResult().failed().message("No writable region server, table create failed.").data(data);
         } else {
             data.setHostName(metadata.pickServer(tableName, Metadata.OperationType.CREATE_TABLE));
             logger.info("Table '{}' is created on '{}'", tableName, data.getHostName());
@@ -36,7 +36,7 @@ public class ClientController {
 
     @PostMapping("/query_table")
     public ApiResult queryTable(@RequestParam(name = "tableName") String tableName) {
-        logger.info("Querying table '{}'", tableName);
+        logger.info("Request query table '{}'", tableName);
         Data data = new Data();
         if (!metadata.hasTable(tableName)) {
             return new ApiResult(TABLE_NOT_EXIST.getCode(), TABLE_NOT_EXIST.getMessage(), data);
@@ -48,12 +48,12 @@ public class ClientController {
 
     @PostMapping("/write_table")
     public ApiResult writeTable(@RequestParam(name = "tableName") String tableName) {
-        logger.info("Writing table '{}'", tableName);
+        logger.info("Request write table '{}'", tableName);
         Data data = new Data();
         if (!metadata.hasTable(tableName)) {
             return new ApiResult(TABLE_NOT_EXIST.getCode(), TABLE_NOT_EXIST.getMessage(), data);
         } else if (!metadata.hasWritable()) {
-            return new ApiResult().failed().message("No region is writable");
+            return new ApiResult().failed().message("No writable region server, table create failed.");
         } else {
             data.setHostName(metadata.pickServer(tableName, Metadata.OperationType.WRITE_TABLE));
             return new ApiResult().success().data(data);
