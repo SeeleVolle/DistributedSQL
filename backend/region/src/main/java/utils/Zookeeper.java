@@ -152,7 +152,7 @@ public class Zookeeper {
         client.setData().forPath("/region" + regionID + "/number", Integer.valueOf(number + 1).toString().getBytes());
         //2.从master处拷贝数据
         this.isMaster = false;
-        String masterAddr = new String(client.getData().forPath("/region" + regionID + "/master"));
+        String masterAddr = getMasterAddr();
         System.out.println("Copy from master db: " + masterAddr+ "...");
         CLearDB();
         CopyFromRemoteDB(masterAddr);
@@ -160,6 +160,16 @@ public class Zookeeper {
         masterListener = new MasterListener();
         masterListener.startlistening();
     }
+
+    public String getMasterAddr(){
+        try{
+            return new String(client.getData().forPath("/region" + regionID + "/master"));
+        }catch(Exception e){
+            System.out.println("Error: Can't get master address");
+        }
+        return null;
+    }
+
 
     public void CLearDB(){
         try{
@@ -224,6 +234,10 @@ public class Zookeeper {
     public void CopyFromRemoteTable(String addr, String tablename) throws SQLException {
         DatabaseConnection SourceDatabaseConnection = new DatabaseConnection("jdbc:mysql://"+ addr.substring(0, addr.indexOf(":")) +":3306/DISTRIBUTED", databaseConnection.getUsername(), databaseConnection.getPassword());
         SourceDatabaseConnection.connect();
+        //清除旧表
+        Connection conn = SourceDatabaseConnection.getConnection();
+        PreparedStatement ps = conn.prepareStatement("drop table " + tablename);
+        ps.executeUpdate();
         TableCopy tableCopy = new TableCopy(SourceDatabaseConnection, databaseConnection,  tablename, tablename);
         tableCopy.copy();
     }

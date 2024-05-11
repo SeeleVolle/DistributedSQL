@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 import utils.CheckSum;
 import utils.DatabaseConnection;
+import utils.DatabaseCopy;
 import utils.Zookeeper;
 
 import java.net.Inet4Address;
@@ -101,6 +102,15 @@ public class RegionApplication {
         //1. 执行SQL语句
         try{
             executeSQLUpdated(params.getSql());
+            if(!zookeeper.isMaster()){
+                CheckSum checkSum = new CheckSum(databaseConnection);
+                long myCRCResult = checkSum.getCRC4Table(params.getTableName());
+                long masterCRCResult = Long.valueOf(params.getCrcResult());
+                if(myCRCResult != masterCRCResult){
+                    String masterAddr = zookeeper.getMasterAddr();
+                    zookeeper.CopyFromRemoteTable(masterAddr, params.getTableName());
+                }
+            }
         }catch (Exception e){
             System.out.println("Error: Region Server create table failed.");
             res.put("status", "500");
@@ -110,7 +120,7 @@ public class RegionApplication {
         //2. master转发sql语句到该Region下的所有slave
         if(zookeeper.isMaster()){
             while(!zookeeper.isReady());
-            forward(params.getSql(), "create", params.getTableName());
+            forward(params.getSql(), "create", params.getTableName(), 1);
         //3. 更新zk下的table信息
             try{
                 zookeeper.addTable(params.getTableName());
@@ -134,12 +144,22 @@ public class RegionApplication {
         //1. 执行SQL语句
         try{
             executeSQLUpdated(params.getSql());
+            if(!zookeeper.isMaster()){
+                CheckSum checkSum = new CheckSum(databaseConnection);
+                long myCRCResult = checkSum.getCRC4Table(params.getTableName());
+                long masterCRCResult = Long.valueOf(params.getCrcResult());
+                if(myCRCResult != masterCRCResult){
+                    String masterAddr = zookeeper.getMasterAddr();
+                    zookeeper.CopyFromRemoteTable(masterAddr, params.getTableName());
+                }
+            }
         }catch (Exception e){
             System.out.println("Error: Region Server drop table failed.");
             res.put("status", "500");
             res.put("msg", "Drop table failed");
             return res;
         }
+
         //2. master转发sql语句到该Region下的所有slave
         if(zookeeper.isMaster()){
             while(!zookeeper.isReady());
@@ -225,16 +245,26 @@ public class RegionApplication {
         //1. 执行SQL语句
         try{
             executeSQLUpdated(params.getSql());
+            if(!zookeeper.isMaster()){
+                CheckSum checkSum = new CheckSum(databaseConnection);
+                long myCRCResult = checkSum.getCRC4Table(params.getTableName());
+                long masterCRCResult = Long.valueOf(params.getCrcResult());
+                if(myCRCResult != masterCRCResult){
+                    String masterAddr = zookeeper.getMasterAddr();
+                    zookeeper.CopyFromRemoteTable(masterAddr, params.getTableName());
+                }
+            }
         }catch (Exception e){
             System.out.println("Error: Region Server update table failed.");
             res.put("status", "500");
             res.put("msg", "Update table failed");
             return res;
         }
+
         //2. master转发sql语句到该Region下的所有slave
         if(zookeeper.isMaster()){
             while(!zookeeper.isReady());
-            forward(params.getSql(), "update", params.getTableName());
+            forward(params.getSql(), "update", params.getTableName(), masterCRCval);
         }
         res.put("status", "200");
         res.put("msg", "Update table successfully");
@@ -269,7 +299,7 @@ public class RegionApplication {
         return null;
     }
 
-    public void forward(String sql,  String type, String tableName){
+    public void forward(String sql,  String type, String tableName, long myCRCResult){
         List<String> slavesAddrs = zookeeper.getSlaves();
         for(String slaveAddr: slavesAddrs) {
             String slaveurl = "http://" + slaveAddr.substring(0, slaveAddr.indexOf(":")) + ":9090/" + type;
@@ -278,6 +308,7 @@ public class RegionApplication {
             JSONObject params = new JSONObject();
             params.put("sql", sql);
             params.put("tableName", tableName);
+            params.put("CRCResult", String.valueOf(myCRCResult));
             //设置请求头和请求体
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -293,7 +324,7 @@ public class RegionApplication {
         }
     }
 
-    public boolean vote(String sql, String tableName, String myCRCResult) throws SQLException {
+    public boolean vote(String sql, String tableName, long myCRCResult) throws SQLException {
         List<String> slavesAddrs = zookeeper.getSlaves();
         int supports_num = 1;
         //转发请求并获取结果
@@ -341,10 +372,12 @@ public class RegionApplication {
 class SQLParams{
     private String sql;
     private String tableName;
+    private long CRCResult;
 
-    SQLParams(String sql, String tableName){
+    SQLParams(String sql, String tableName, long CRCResult){
         this.sql = sql;
         this.tableName = tableName;
+        this.CRCResult = CRCResult;
     }
 
     public String getSql() {
@@ -355,6 +388,8 @@ class SQLParams{
         return tableName;
     }
 
+    public String getCrcResult() { return CRCResult; }
+
     public void setSql(String sql) {
         this.sql = sql;
     }
@@ -362,5 +397,7 @@ class SQLParams{
     public void setTableName(String tableName) {
         this.tableName = tableName;
     }
+
+    public void setCrcResult(long CRCResult) { this.CRCResult = CRCResult; }
 }
 

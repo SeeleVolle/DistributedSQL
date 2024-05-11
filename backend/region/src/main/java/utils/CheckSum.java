@@ -3,10 +3,7 @@ package utils;
 import org.junit.Test;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.List;
 import java.util.zip.CRC32;
 
@@ -35,13 +32,18 @@ public class CheckSum extends CRC32 {
 
     public long getCRC4Table(String tableName){
         try{
-            PreparedStatement ps = conn.prepareStatement("SELECT * FROM " + tableName);
-            ResultSet rs = ps.executeQuery();
-            long crc = getCRC4ResultSet(rs);
-            return crc;
+            DatabaseMetaData metaData = conn.getMetaData();
+            ResultSet tablers = metaData.getTables(null, null, tableName, null);
+            if(tablers.next()){
+                PreparedStatement ps = conn.prepareStatement("SELECT * FROM " + tableName);
+                ResultSet rs = ps.executeQuery();
+                long crc = getCRC4ResultSet(rs);
+                return crc;
+            }
         }catch(SQLException e){
             System.out.println("Failed to get CRC4Table " + tableName + " in CheckSum");
         }
+        //不存在就返回0
         return 0;
     }
 
