@@ -38,6 +38,38 @@ public class Metadata {
             return !slaves.isEmpty() && !master.isEmpty();
         }
 
+        public void addSlave(String slave) {
+            if (slaves.contains(slave)) {
+                logger.warn("Slave '{}' already exists", slave);
+            } else {
+                slaves.add(slave);
+            }
+        }
+
+        public void removeSlave(String slave) {
+            if (!slaves.contains(slave)) {
+                logger.warn("Slave '{}' doesn't exist", slave);
+            } else {
+                slaves.remove(slave);
+            }
+        }
+
+        public void addTable(String table) {
+            if (tables.contains(table)) {
+                logger.warn("Table '{}' already exists", table);
+            } else {
+                tables.add(table);
+            }
+        }
+
+        public void removeTable(String table) {
+            if (!tables.contains(table)) {
+                logger.warn("Table '{}' doesn't exist", table);
+            } else {
+                tables.remove(table);
+            }
+        }
+
         private int slaveIdx = 0;
 
         /**
@@ -45,7 +77,7 @@ public class Metadata {
          *
          * @return 返回Slave的Hostname
          */
-        public String pickServer() {
+        public String pickQueryServer() {
             String hostName = "";
             if (!slaves.isEmpty()) {
                 slaveIdx = (slaveIdx + 1) % slaves.size();
@@ -110,7 +142,7 @@ public class Metadata {
             switch (type) {
                 case QUERY_TABLE -> {
                     if (region.hasTable(tableName)) {
-                        hostName = region.pickServer(); // 轮询region内的服务器来处理查询
+                        hostName = region.pickQueryServer(); // 轮询region内的服务器来处理查询
                     }
                 }
                 case CREATE_TABLE -> {

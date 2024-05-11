@@ -87,15 +87,13 @@ public class ZkListener {
             slavesListener.getListenable().addListener((curator, event) -> {
                 if (event.getType() == TreeCacheEvent.Type.NODE_ADDED && !event.getData().getPath().equals(path)) {
                     String connectStr = new String(event.getData().getData());
-                    regionMetadata.getSlaves().add(connectStr);
+                    regionMetadata.addSlave(connectStr);
                     logger.info("New slave {} at {} is added", connectStr, path);
-                    // TODO: regionMeta.n_slave = regionMeta.slaves.size(); 不清楚这个干嘛用的
                 } else if (event.getType() == TreeCacheEvent.Type.NODE_REMOVED) {
                     // slaveNode 被删除（更新可用数量与路由信息列表）
                     String connectStr = new String(event.getData().getData());
-                    regionMetadata.getSlaves().remove(connectStr);
+                    regionMetadata.removeSlave(connectStr);
                     logger.info("Slave {} at {} is removed", connectStr, path);
-                    // TODO: regionMeta.n_slave = regionMeta.slaves.size(); 不清楚这个干嘛用的
                 }
             });
             slavesListener.start();
@@ -117,12 +115,12 @@ public class ZkListener {
                 if (event.getType() == TreeCacheEvent.Type.NODE_ADDED && !event.getData().getPath().equals(path)) {
                     String[] paths = event.getData().getPath().split("/");
                     String tableName = paths[3];
-                    regionMetadata.getTables().add(tableName);
+                    regionMetadata.addTable(tableName);
                     logger.info("New table {} at {} is added", tableName, path);
                 } else if (event.getType() == TreeCacheEvent.Type.NODE_REMOVED) {
                     String[] paths = event.getData().getPath().split("/");
                     String tableName = paths[3];
-                    regionMetadata.getTables().remove(tableName);
+                    regionMetadata.removeTable(tableName);
                     logger.info("Table {} at {} is removed", tableName, path);
                 }
             });

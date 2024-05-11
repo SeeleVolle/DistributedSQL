@@ -3,15 +3,15 @@ package com.example.master.api;
 import com.alibaba.fastjson2.JSONObject;
 import com.example.master.api.pojo.Data;
 import com.example.master.zookeeper.Metadata;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.web.bind.annotation.*;
 
 import static com.example.master.api.ApiResultCode.*;
 
 @RestController
 public class ClientController {
+    private static final Logger logger = LoggerFactory.getLogger(ClientController.class);
     private final Metadata metadata = Metadata.getInstance();
 
     @GetMapping("/")
@@ -20,7 +20,8 @@ public class ClientController {
     }
 
     @PostMapping("/create_table")
-    public ApiResult createTable(@RequestParam String tableName) {
+    public ApiResult createTable(@RequestParam(name = "tableName") String tableName) {
+        logger.info("Creating table '{}'", tableName);
         Data data = new Data();
         if (metadata.hasTable(tableName)) {
             return new ApiResult(TABLE_EXIST.getCode(), TABLE_EXIST.getMessage(), data);
@@ -28,12 +29,14 @@ public class ClientController {
             return new ApiResult(INTERNAL_SERVER_ERROR.getCode(), INTERNAL_SERVER_ERROR.getMessage(), data);
         } else {
             data.setHostName(metadata.pickServer(tableName, Metadata.OperationType.CREATE_TABLE));
+            logger.info("Table '{}' is created on '{}'", tableName, data.getHostName());
             return new ApiResult().success().data(data);
         }
     }
 
     @PostMapping("/query_table")
-    public ApiResult queryTable(@RequestParam String tableName) {
+    public ApiResult queryTable(@RequestParam(name = "tableName") String tableName) {
+        logger.info("Querying table '{}'", tableName);
         Data data = new Data();
         if (!metadata.hasTable(tableName)) {
             return new ApiResult(TABLE_NOT_EXIST.getCode(), TABLE_NOT_EXIST.getMessage(), data);
@@ -44,7 +47,8 @@ public class ClientController {
     }
 
     @PostMapping("/write_table")
-    public ApiResult writeTable(@RequestParam String tableName) {
+    public ApiResult writeTable(@RequestParam(name = "tableName") String tableName) {
+        logger.info("Writing table '{}'", tableName);
         Data data = new Data();
         if (!metadata.hasTable(tableName)) {
             return new ApiResult(TABLE_NOT_EXIST.getCode(), TABLE_NOT_EXIST.getMessage(), data);
@@ -58,6 +62,7 @@ public class ClientController {
 
     @PostMapping("/meta_info")
     public ApiResult metaInfo() {
+        logger.info("Getting all regions' metadata information");
         JSONObject data = new JSONObject();
         data.put("meta", metadata);
         return new ApiResult().success().data(data);
