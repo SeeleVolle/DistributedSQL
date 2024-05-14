@@ -142,6 +142,8 @@ public class Zookeeper {
         client.delete().forPath("/region" + regionID + "/slaves/slave" + serverID);
         //2. 停止对master目录的监听
         masterListener.stoplistening();
+        //3. 更新tables目录
+        WriteTableMeta();
     }
 
     public void slaveInit(Integer regionID, Integer serverID, String localaddr, Integer number) throws Exception {
@@ -386,7 +388,6 @@ public class Zookeeper {
                 }catch(Exception e){
                     System.out.println("Error: MasterListener can't handle event");
                 }
-
             }
         }
 

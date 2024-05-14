@@ -66,8 +66,6 @@ public class CheckSum extends CRC32 {
                 crc += getCRC32(rs.getString(i));
             }
         }
-        conn.close();
-
         return crc;
     }
     public long getCRC32(String str){

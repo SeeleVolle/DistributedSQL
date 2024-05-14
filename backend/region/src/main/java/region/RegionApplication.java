@@ -120,7 +120,9 @@ public class RegionApplication {
         //2. master转发sql语句到该Region下的所有slave
         if(zookeeper.isMaster()){
             while(!zookeeper.isReady());
-            forward(params.getSql(), "create", params.getTableName(), 1);
+            CheckSum checkSum = new CheckSum(databaseConnection);
+            long myCRCResult = checkSum.getCRC4Table(params.getTableName());
+            forward(params.getSql(), "create", params.getTableName(), myCRCResult);
         //3. 更新zk下的table信息
             try{
                 zookeeper.addTable(params.getTableName());
@@ -163,7 +165,9 @@ public class RegionApplication {
         //2. master转发sql语句到该Region下的所有slave
         if(zookeeper.isMaster()){
             while(!zookeeper.isReady());
-            forward(params.getSql(), "drop", params.getTableName());
+            CheckSum checkSum = new CheckSum(databaseConnection);
+            long myCRCResult = checkSum.getCRC4Table(params.getTableName());
+            forward(params.getSql(), "drop", params.getTableName(), myCRCResult);
         //3. 更新zk下的table信息
             try{
                 zookeeper.removeTable(params.getTableName());
@@ -199,7 +203,7 @@ public class RegionApplication {
             }
 
             CheckSum checkSum = new CheckSum(databaseConnection);
-            String myCRCResult = String.valueOf(checkSum.getCRC4Result(datalist));
+            long myCRCResult = checkSum.getCRC4Result(datalist);
         //2. 转发sql语句到其他slave进行vote表决
             if(vote(params.getSql(), params.getTableName(), myCRCResult)){
                 res.put("status", "200");
@@ -222,7 +226,7 @@ public class RegionApplication {
                         else
                             row.append(datalist.get(i)[j]).append(" ");
                     }
-                    res.put("Row "+ i+1 +" :", row.toString());
+                    res.put("Row "+ String.valueOf(i+1) +" :", row.toString());
                 }
             }
             else
@@ -264,7 +268,9 @@ public class RegionApplication {
         //2. master转发sql语句到该Region下的所有slave
         if(zookeeper.isMaster()){
             while(!zookeeper.isReady());
-            forward(params.getSql(), "update", params.getTableName(), masterCRCval);
+            CheckSum checkSum = new CheckSum(databaseConnection);
+            long myCRCResult = checkSum.getCRC4Table(params.getTableName());
+            forward(params.getSql(), "update", params.getTableName(), myCRCResult);
         }
         res.put("status", "200");
         res.put("msg", "Update table successfully");
@@ -388,7 +394,7 @@ class SQLParams{
         return tableName;
     }
 
-    public String getCrcResult() { return CRCResult; }
+    public long getCrcResult() { return CRCResult; }
 
     public void setSql(String sql) {
         this.sql = sql;
