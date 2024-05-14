@@ -210,6 +210,7 @@ public class Zookeeper {
         try{
             client.create().withMode(CreateMode.EPHEMERAL).forPath("/region" + regionID + "/tables/" + name, name.getBytes());
         }catch(Exception e){
+            e.printStackTrace();
             System.out.println("Error: Master can't add table information to zkserver");
         }
     }

@@ -384,6 +384,9 @@ class SQLParams{
         this.sql = sql;
         this.tableName = tableName;
         this.CRCResult = CRCResult;
+
+        this.tableName = this.tableName.toUpperCase();
+        this.sql = this.sql.replaceFirst(tableName, this.tableName);
     }
 
     public String getSql() {
