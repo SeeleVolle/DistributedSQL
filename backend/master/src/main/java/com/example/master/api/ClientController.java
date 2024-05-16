@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import static com.example.master.api.ApiResultCode.*;
 
+@CrossOrigin
 @RestController
 public class ClientController {
     private static final Logger logger = LoggerFactory.getLogger(ClientController.class);
