@@ -65,7 +65,7 @@ public class ZkListener {
                         regionMetadata.setMaster(master);
                         logger.info("New master {} at {}.", master, path);
                     } else {
-                        logger.warn("Node data at {} is missing.", path);
+                        logger.warn("Master data at {} is missing.", path);
                     }
                 } catch (Exception e) {
                     logger.error(e.getMessage());
@@ -119,7 +119,21 @@ public class ZkListener {
                 if (event.getType() == TreeCacheEvent.Type.NODE_ADDED && !event.getData().getPath().equals(path)) {
                     String[] paths = event.getData().getPath().split("/");
                     String tableName = paths[3];
-                    regionMetadata.addTable(tableName);
+                    String hashRange;
+                    int hashStart = 0, hashEnd = 65536;
+                    try {
+                        hashRange = new String(event.getData().getData());
+                        String[] hrList = hashRange.split(",");
+                        hashStart = Integer.parseInt(hrList[0]);
+                        hashEnd = Integer.parseInt(hrList[1]);
+                    } catch (Exception e) {
+                        if (e instanceof NullPointerException) {
+                            logger.warn("Table's node data is null, which mean normal creation of table");
+                        } else {
+                            logger.error(e.getMessage());
+                        }
+                    }
+                    regionMetadata.addTable(tableName, hashStart, hashEnd);
                     logger.info("New table {} at {} is added", tableName, path);
                 } else if (event.getType() == TreeCacheEvent.Type.NODE_REMOVED && !event.getData().getPath().equals(path)) {
                     String[] paths = event.getData().getPath().split("/");

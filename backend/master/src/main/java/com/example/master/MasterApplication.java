@@ -52,13 +52,20 @@ public class MasterApplication {
         logger.info("Cleanup successfully, disconnected from Zookeeper");
     }
 
+    /**
+     * 热点检测，热点需要符合以下几个条件
+     * 1. 可写Region的数量>=2
+     * 2. 被访问最多的Region的访问次数是最少的Region的次数的两倍以上
+     * 3.
+     * 4.
+     */
     @Scheduled(fixedRate = 10000)
     public void hotPointChecker() {
         logger.info("Checking hot point");
         Metadata metadata = Metadata.getInstance();
         int min = Integer.MAX_VALUE, max = Integer.MIN_VALUE, writableRegionCount = 0;
         Metadata.RegionMetadata maxRegion = null, minRegion = null;
-        for (var regionMeta : metadata.getData()) {
+        for (var regionMeta : metadata.getRegions()) {
             if (regionMeta.getVisitCount() < min && regionMeta.isWritable()) {
                 writableRegionCount++;
                 min = regionMeta.getVisitCount();
@@ -75,9 +82,9 @@ public class MasterApplication {
         // 符合热点迁移条件，将Max Region中的半数数据表迁移至Min Region
         if ((maxRegion != null && minRegion != null) && (writableRegionCount >= 2 && max > 2 * min && max > HOTPOINT_THRESHOLD)) {
             logger.info("Hot point synchronisation is processing");
-            List<String> tablesToMove = maxRegion.getTables().subList(0, maxRegion.getTables().size() / 2);
+            List<Metadata.RegionMetadata.Table> tablesToMove = maxRegion.getTables().subList(0, maxRegion.getTables().size() / 2);
             requestSyncTables(maxRegion.getMaster(), minRegion.getMaster(), tablesToMove);
-            for (var region : metadata.getData()) {
+            for (var region : metadata.getRegions()) {
                 region.setZeroVisitCount();
             }
             logger.info("Hot point synchronisation completed");
@@ -86,7 +93,7 @@ public class MasterApplication {
         }
     }
 
-    public void requestSyncTables(String from, String to, List<String> tables) {
+    public void requestSyncTables(String from, String to, List<Metadata.RegionMetadata.Table> tables) {
 
     }
 

@@ -7,7 +7,6 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.util.Vector;
 
@@ -58,7 +57,7 @@ public class ZkClient {
             zkListener.listenMaster(); // Listen to master ZNode
             zkListener.listenTables(); // Listen to tables ZNode and its child nodes
             zkListener.listenSlaves(); // Listen to slaves ZNode and its child nodes
-            metadata.getData().add(regionMetadata);
+            metadata.getRegions().add(regionMetadata);
         }
     }
 
