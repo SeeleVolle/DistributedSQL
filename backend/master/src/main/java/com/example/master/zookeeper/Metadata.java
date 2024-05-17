@@ -19,9 +19,22 @@ public class Metadata {
 
     @Data
     public static class RegionMetadata {
+
+        @Data
+        public static class Table {
+            private Integer hashStart;
+            private Integer hashEnd;
+            private String tableName;
+        }
+
         private static final Logger logger = LoggerFactory.getLogger(RegionMetadata.class);
+
+        public static Integer hash(String value) {
+            return value.hashCode() % 65536;
+        }
+
         volatile private String master; // 区域内主节点的HostName
-        volatile private List<String> tables; // 区域内负责存储的表
+        volatile private List<Table> tables; // 区域内负责存储的表
         volatile private List<String> slaves; // 区域内从节点的HostName
         // private int number; // 暂时没有用处
         volatile private int visitCount;
@@ -49,7 +62,29 @@ public class Metadata {
          * @return 返回region是否存在表tableName
          */
         synchronized public Boolean hasTable(String tableName) {
-            return tables.contains(tableName);
+            for (Table table : tables) {
+                if (table.tableName.equals(tableName)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * @param tableName 表名
+         * @param pkValue   主键的实际值
+         * @return 返回这个pkValue的记录是否属于这个Region
+         */
+        synchronized public Boolean pkValueBelongThisRegion(String tableName, String pkValue) {
+            for (Table table : tables) {
+                if (table.tableName.equals(tableName)) {
+                    Integer hashValue = hash(pkValue);
+                    if (hashValue < table.hashEnd && hashValue >= table.hashStart) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         /**
@@ -76,19 +111,24 @@ public class Metadata {
             }
         }
 
-        synchronized public void addTable(String table) {
-            if (tables.contains(table)) {
+        synchronized public void addTable(String table, int hashStart, int hashEnd) {
+            if (hasTable(table)) {
                 logger.warn("Table '{}' already exists", table);
             } else {
-                tables.add(table);
+                Table t = new Table();
+                t.tableName = table;
+                t.hashStart = hashStart; // Inclusive
+                t.hashEnd = hashEnd; // Exclusive
+                logger.info("{}", t);
+                tables.add(t);
             }
         }
 
         synchronized public void removeTable(String table) {
-            if (!tables.contains(table)) {
+            if (!hasTable(table)) {
                 logger.warn("Table '{}' doesn't exist", table);
             } else {
-                tables.remove(table);
+                tables.removeIf(t -> t.tableName.equals(table));
             }
         }
 
@@ -99,7 +139,7 @@ public class Metadata {
          *
          * @return 返回Slave的Hostname
          */
-        synchronized public String pickQueryServer() {
+        synchronized public String pickHandleSlave() {
             String hostName;
             if (!slaves.isEmpty()) {
                 slaveIdx = (slaveIdx + 1) % slaves.size();
@@ -124,10 +164,10 @@ public class Metadata {
         return metadata;
     }
 
-    private List<RegionMetadata> data;
+    private List<RegionMetadata> regions;
 
     private Metadata() {
-        this.data = new Vector<>();
+        this.regions = new Vector<>();
     }
 
     /**
@@ -137,7 +177,7 @@ public class Metadata {
      * @return True if table existing in one of the region, else return false
      */
     public Boolean hasTable(String tableName) {
-        for (var i : data) {
+        for (var i : regions) {
             if (i.hasTable(tableName)) return true;
         }
         return false;
@@ -149,7 +189,7 @@ public class Metadata {
      * @return 返回真值
      */
     public Boolean hasWritable() {
-        for (var i : data) {
+        for (var i : regions) {
             if (i.isWritable()) {
                 return true;
             } else {
@@ -164,6 +204,8 @@ public class Metadata {
         CREATE_TABLE,
         DROP_TABLE,
         QUERY_TABLE,
+        INSERT_TABLE,
+        UPDATE_TABLE,
         WRITE_TABLE
     }
 
@@ -177,21 +219,24 @@ public class Metadata {
     public String pickServer(String tableName, OperationType type) {
         String hostName = "null";
         switch (type) {
-            case QUERY_TABLE -> {
-                for (var region : data) {
+            case DROP_TABLE:
+            case QUERY_TABLE:
+                // 返回存在被查询的表所在的所有Regions
+                for (var region : regions) {
+                    // TODO： 查询table可能有必要返回多个HostName，因为不同Region可能都存有相同，但是查询需要查询每个region
                     if (region.hasTable(tableName)) {
-                        hostName = region.pickQueryServer(); // 轮询region内的服务器来处理查询
+                        hostName = region.pickHandleSlave(); // 轮询region内的服务器来处理查询
                         region.incrementVisitCount();
                     }
                 }
-            }
-            case CREATE_TABLE -> {
+                break;
+            case CREATE_TABLE:
+                // 选择table最少且无此table的region来创建表
                 int minNTables = Integer.MAX_VALUE;
                 RegionMetadata minRegion = null;
-                for (var region : data) {
+                for (var region : regions) {
                     if (region.isWritable()) {
                         int nTables = region.getTables().size();
-                        // 选择table最少的region来创建表
                         if (nTables < minNTables) {
                             minNTables = nTables;
                             hostName = region.getMaster(); // 由master去下达指令给region的所有服务器
@@ -204,9 +249,10 @@ public class Metadata {
                 if (minRegion != null) {
                     minRegion.incrementVisitCount();
                 }
-            }
-            case WRITE_TABLE -> {
-                for (var region : data) {
+                break;
+
+            case WRITE_TABLE:
+                for (var region : regions) {
                     if (region.hasTable(tableName)) {
                         hostName = region.getMaster(); // 由master去下达指令给region的所有服务器
                         region.incrementVisitCount();
@@ -214,8 +260,25 @@ public class Metadata {
                         logger.warn("Region with master {} doesn't have table {}", region.master, tableName);
                     }
                 }
-            }
-            default -> logger.warn("No server being picked");
+                break;
+
+            // TODO
+            case INSERT_TABLE:
+            case UPDATE_TABLE:
+                // 返回负责处理insert/update的Region Master
+                for (var region : regions) {
+                    String pkValue = "pkValue";
+                    if (region.pkValueBelongThisRegion(tableName, pkValue)) {
+                        hostName = region.getMaster();
+                        region.incrementVisitCount();
+                    } else {
+                        logger.warn("{} in table {} doesn't belong to region with master {}", pkValue, tableName, region.master);
+                    }
+                }
+                break;
+
+            default:
+                logger.warn("No server being picked");
 
         }
 
