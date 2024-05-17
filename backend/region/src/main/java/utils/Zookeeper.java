@@ -198,7 +198,7 @@ public class Zookeeper {
             while(rs.next()){
                 String tableName = rs.getString(1);
                 System.out.println("Write table meta: " + tableName);
-                client.create().withMode(CreateMode.EPHEMERAL).forPath("/region" + regionID + "/tables/" + tableName, tableName.getBytes());
+                client.create().withMode(CreateMode.EPHEMERAL).forPath("/region" + regionID + "/tables/" + tableName, "0,65536".getBytes());
             }
         }catch(Exception e){
             e.printStackTrace();

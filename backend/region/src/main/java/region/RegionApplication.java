@@ -12,15 +12,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.http.*;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
-import utils.CheckSum;
-import utils.DatabaseConnection;
-import utils.DatabaseCopy;
-import utils.Zookeeper;
+import utils.*;
 
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -49,6 +43,7 @@ public class RegionApplication {
     private String username;
     @Value("${DatabaseConnection.password}")
     private String password;
+    private int visitCount;
 
 
     private static Zookeeper zookeeper;
@@ -71,6 +66,8 @@ public class RegionApplication {
             //初始化zookeeper
             zookeeper = new Zookeeper(localaddr, zkServerAddr, databaseConnection, maxRegions, maxServers);
             zookeeper.connect();
+            //初始化访问次数为0
+            visitCount = 0;
         } catch (Exception e){
             e.printStackTrace();
             System.out.println("Error: Region Server init failed.");
@@ -97,6 +94,7 @@ public class RegionApplication {
 
     @RequestMapping("/create")
     public JSONObject createTable(@RequestBody SQLParams params){
+        visitCount++;
         System.out.println("SQL: " + params.getSql());
         JSONObject res = new JSONObject();
         //1. 执行SQL语句
@@ -140,6 +138,7 @@ public class RegionApplication {
 
     @RequestMapping("/drop")
     public JSONObject dropTable(@RequestBody SQLParams params){
+        visitCount++;
         System.out.println("SQL: " + params.getSql());
 
         JSONObject res = new JSONObject();
@@ -185,6 +184,7 @@ public class RegionApplication {
 
     @RequestMapping("/query")
     public JSONObject queryTable(@RequestBody SQLParams params) {
+        visitCount++;
         System.out.println("SQL: " + params.getSql());
 
         JSONObject res = new JSONObject();
@@ -243,6 +243,7 @@ public class RegionApplication {
 
     @RequestMapping("/update")
     public JSONObject updateTable(@RequestBody SQLParams params){
+        visitCount++;
         System.out.println("SQL: " + params.getSql());
 
         JSONObject res = new JSONObject();
@@ -373,7 +374,118 @@ public class RegionApplication {
         res.put("status", "200");
         return res;
     }
+
+    @RequestMapping("/hotsend")
+    public JSONObject hotSend(@RequestBody List<TransfrerMeta> tables,  @RequestParam String targetIP)  {
+        System.out.println("Hot is sending to " + targetIP  + " ...");
+        JSONObject res = new JSONObject();
+        DatabaseConnection target_databaseConnection = new DatabaseConnection("jdbc:mysql://"+ targetIP + ":3306/DISTRIBUTED", username, password);
+
+        try{
+            target_databaseConnection.connect();
+            Connection target_conn = target_databaseConnection.getConnection();
+            //获取source的databaseMetadata
+            DatabaseMetaData source_metaData = databaseConnection.getConnection().getMetaData();
+            for(TransfrerMeta table : tables){
+                //构造tableCopy类
+                TableCopy tableCopy = new TableCopy(databaseConnection, target_databaseConnection,  table.getTableName(), table.getTableName());
+                //获取主键
+                ResultSet primaryKeys = source_metaData.getPrimaryKeys(null, null,  table.getTableName());
+                String primaryName = "";
+                if(primaryKeys.next()){
+                    primaryName = primaryKeys.getString("COLUMN_NAME");
+                }
+                //遍历主键并判断是否在哈希区间内, 如果在就在target上插入，在source上删除
+                String tableName = table.getTableName();
+                int start = table.getStart();
+                int end = table.getEnd();
+                //判断目标数据库是否存在对应表, 不存在则创建
+                PreparedStatement target_ps = target_conn.prepareStatement("show tables");
+                ResultSet target_table_rs = target_ps.executeQuery();
+                boolean isExist = false;
+                while(target_table_rs.next()){
+                    if(target_table_rs.getString(1).equals(tableName)){
+                        isExist = true;
+                        break;
+                    }
+                }
+                if(!isExist){
+                    PreparedStatement targetStmt_Create = target_conn.prepareStatement(tableCopy.generateCreateStatment(databaseConnection.getConnection(), tableName));
+                    targetStmt_Create.executeUpdate();
+                }
+                PreparedStatement ps = databaseConnection.getConnection().prepareStatement("SELECT "+ primaryName +" FROM " + tableName);
+                ResultSet primary_rs = ps.executeQuery();
+                //遍历主键
+                while(primary_rs.next()){
+                    String primaryValue = primary_rs.getString(1);
+                    int hash = primaryValue.hashCode();
+                    if(hash >= start && hash <= end){
+                        //在target上插入
+                        PreparedStatement source_row_sql = databaseConnection.getConnection().prepareStatement("SELECT * FROM " + tableName + " WHERE " + primaryName + " = " + primaryValue);
+                        ResultSet source_rs = source_row_sql.executeQuery();
+                        ResultSetMetaData source_rs_metadata= source_rs.getMetaData();
+                        if(source_rs.next()) {
+                            PreparedStatement target_ps_insert = target_conn.prepareStatement(tableCopy.generateInsertStatment(source_rs_metadata));
+                            int columns = source_rs_metadata.getColumnCount();
+                            for(int i = 1; i <= columns; i++){
+                                target_ps_insert.setObject(i, source_rs.getObject(i));
+                            }
+                            target_ps_insert.executeUpdate();
+                        }
+                        //在source上删除
+                        PreparedStatement source_ps_delete = databaseConnection.getConnection().prepareStatement("DELETE FROM " + tableName + " WHERE " + primaryName + " = " + primaryValue);
+                        source_ps_delete.executeUpdate();
+                    }
+                }
+            }
+            res.put("status", "200");
+            res.put("msg", "Transfer Successfully");
+
+        }catch(Exception e){
+            e.printStackTrace();
+            res.put("status", "500");
+            res.put("msg", "Transfer Failed");
+        }
+
+        return res;
+    }
+
+    @RequestMapping("/visiting")
+    public JSONObject getVisiting(){
+        JSONObject res = new JSONObject();
+        res.put("status", "200");
+        res.put("visitCount", visitCount);
+        return res;
+    }
+
+    @RequestMapping("/visitingClear")
+    public JSONObject visitingClear(){
+        JSONObject res = new JSONObject();
+        visitCount = 0;
+        res.put("status", "200");
+        res.put("msg", "Visit Count Clear Successfully");
+        return res;
+    }
+
 }
+
+class TransfrerMeta{
+    private String tableName;
+    private Integer start;
+    private Integer end;
+
+    TransfrerMeta(String tableName, int start, int end){
+        this.tableName = tableName.toUpperCase();
+        this.start = start;
+        this.end = end;
+
+    }
+
+    public  String getTableName(){return tableName;}
+    public int getStart(){return start;}
+    public int getEnd(){return end;}
+}
+
 
 class SQLParams{
     private String sql;
@@ -399,14 +511,7 @@ class SQLParams{
 
     public long getCrcResult() { return CRCResult; }
 
-    public void setSql(String sql) {
-        this.sql = sql;
-    }
-
-    public void setTableName(String tableName) {
-        this.tableName = tableName;
-    }
-
-    public void setCrcResult(long CRCResult) { this.CRCResult = CRCResult; }
 }
+
+
 
