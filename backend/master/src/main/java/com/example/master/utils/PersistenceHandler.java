@@ -7,19 +7,12 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
-import java.util.Objects;
 import java.util.Vector;
 
-public class FileLoader {
-    private static final Logger logger = LoggerFactory.getLogger(FileLoader.class);
+public class PersistenceHandler {
+    private static final Logger logger = LoggerFactory.getLogger(PersistenceHandler.class);
 
-    private static final String resourcePath;
-
-    public FileLoader() {
-    }
-
-    static {
-        resourcePath = Objects.requireNonNull(FileLoader.class.getClassLoader().getResource("")).getPath();
+    public PersistenceHandler() {
     }
 
     public static Vector<String> loadZkServers(String file) {
@@ -35,4 +28,5 @@ public class FileLoader {
         }
         return zkServers;
     }
+
 }

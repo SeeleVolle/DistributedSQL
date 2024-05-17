@@ -3,33 +3,32 @@ package com.example.master.zookeeper;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.framework.recipes.cache.ChildData;
-import org.apache.curator.framework.recipes.cache.NodeCache;
-import org.apache.curator.framework.recipes.cache.TreeCache;
-import org.apache.curator.framework.recipes.cache.TreeCacheEvent;
+import org.apache.curator.framework.recipes.cache.*;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
+import static com.example.master.zookeeper.ZkConfigs.MAX_HASH;
+
 /**
  * Implementation of Zookeeper listener for master server
  */
 public class ZkListener {
     private static final Logger logger = LoggerFactory.getLogger(ZkListener.class);
-    private final CuratorFramework zkClient;
+    private final CuratorFramework curatorFramework;
     private final Integer regionId;
     private final Metadata.RegionMetadata regionMetadata;
 
     /**
-     * @param zkClient       Instance of ZkClient
-     * @param regionId       Region ID
-     * @param regionMetadata Instance of RegionMetadata
+     * @param curatorFramework Instance of ZkClient
+     * @param regionId         Region ID
+     * @param regionMetadata   Instance of RegionMetadata
      */
-    public ZkListener(CuratorFramework zkClient, Integer regionId, Metadata.RegionMetadata regionMetadata) {
+    public ZkListener(CuratorFramework curatorFramework, Integer regionId, Metadata.RegionMetadata regionMetadata) {
         this.regionId = regionId;
-        this.zkClient = zkClient;
+        this.curatorFramework = curatorFramework;
         this.regionMetadata = regionMetadata;
     }
 
@@ -40,14 +39,49 @@ public class ZkListener {
     public ZkListener(Integer regionId, Metadata.RegionMetadata regionMetadata) {
         List<String> zkServers = ZkConfigs.zkServers;
         RetryPolicy retryPolicy = new ExponentialBackoffRetry(3000, 1);
-        this.zkClient = CuratorFrameworkFactory.newClient(String.join(",", zkServers), 5000, 5000, retryPolicy);
+        this.curatorFramework = CuratorFrameworkFactory.newClient(String.join(",", zkServers), 5000, 5000, retryPolicy);
         this.regionId = regionId;
         this.regionMetadata = regionMetadata;
     }
 
-    private TreeCache tablesListener;
-    private TreeCache slavesListener;
-    private NodeCache masterListener;
+    private CuratorCache masterMasterListener;
+
+    public void listenMasterMaster() {
+        String path = "/master/master";
+        try {
+            masterMasterListener = CuratorCache.builder(curatorFramework, path).build();
+            masterMasterListener.listenable().addListener((type, old, curr) -> {
+                try {
+                    switch (type) {
+                        case NODE_CREATED:
+                            String newMasterMaster = new String(curr.getData());
+                            logger.info("New Master-Master {}", newMasterMaster);
+                            break;
+                        case NODE_CHANGED:
+                            break;
+                        case NODE_DELETED:
+                            String oldMasterMaster = new String(old.getData());
+                            logger.warn("Master-Master {} has shutdown, I am becoming new Master-Master", oldMasterMaster);
+                            ZkClient zkClient = ZkClient.getInstance();
+                            zkClient.initMasterMaster();
+                            break;
+
+                    }
+                } catch (Exception e) {
+                    logger.error(e.getMessage());
+                }
+            });
+            masterMasterListener.start();
+            logger.info("MasterMaster is listened at path: {}", path);
+        } catch (Exception e) {
+            logger.error("Error occurs on listen master-master at path: {} ", path);
+            logger.error(e.getMessage());
+        }
+    }
+
+    private CuratorCache tablesListener;
+    private CuratorCache slavesListener;
+    private CuratorCache masterListener;
 
     /**
      * 监听对应Region的master主节点目录
@@ -55,11 +89,10 @@ public class ZkListener {
     public void listenMaster() {
         String path = ZkConfigs.generateRegionPath(regionId) + Paths.MASTER.getPath();
         try {
-            masterListener = new NodeCache(zkClient, path);
-            masterListener.getListenable().addListener(() -> {
+            masterListener = CuratorCache.builder(curatorFramework, path).build();
+            masterListener.listenable().addListener((type, old, curr) -> {
                 try {
-                    ChildData childData = masterListener.getCurrentData();
-                    byte[] data = childData.getData();
+                    byte[] data = curr.getData();
                     if (data != null) {
                         String master = new String(data);
                         regionMetadata.setMaster(master);
@@ -86,16 +119,16 @@ public class ZkListener {
     public void listenSlaves() {
         String path = ZkConfigs.generateRegionPath(regionId) + Paths.SLAVE.getPath();
         try {
-            slavesListener = new TreeCache(zkClient, path);
-            slavesListener.getListenable().addListener((curator, event) -> {
-                if (event.getType() == TreeCacheEvent.Type.NODE_ADDED && !event.getData().getPath().equals(path)) {
-                    byte[] data = event.getData().getData();
+            slavesListener = CuratorCache.builder(curatorFramework, path).build();
+            slavesListener.listenable().addListener((type, old, curr) -> {
+                if (type == CuratorCacheListener.Type.NODE_CREATED && !curr.getPath().equals(path)) {
+                    byte[] data = curr.getData();
                     String connectStr = new String(data);
                     regionMetadata.addSlave(connectStr);
                     logger.info("New slave {} at {} is added", connectStr, path);
-                } else if (event.getType() == TreeCacheEvent.Type.NODE_REMOVED && !event.getData().getPath().equals(path)) {
+                } else if (type == CuratorCacheListener.Type.NODE_DELETED && !curr.getPath().equals(path)) {
                     // slaveNode 被删除（更新可用数量与路由信息列表）
-                    String connectStr = new String(event.getData().getData());
+                    String connectStr = new String(old.getData());
                     regionMetadata.removeSlave(connectStr);
                     logger.info("Slave {} at {} is removed", connectStr, path);
                 }
@@ -114,15 +147,15 @@ public class ZkListener {
     public void listenTables() {
         String path = ZkConfigs.generateRegionPath(regionId) + Paths.TABLE.getPath();
         try {
-            tablesListener = new TreeCache(zkClient, path);
-            tablesListener.getListenable().addListener((curator, event) -> {
-                if (event.getType() == TreeCacheEvent.Type.NODE_ADDED && !event.getData().getPath().equals(path)) {
-                    String[] paths = event.getData().getPath().split("/");
+            tablesListener = CuratorCache.builder(curatorFramework, path).build();
+            tablesListener.listenable().addListener((type, old, curr) -> {
+                if (type == CuratorCacheListener.Type.NODE_CREATED && !curr.getPath().equals(path)) {
+                    String[] paths = curr.getPath().split("/");
                     String tableName = paths[3];
                     String hashRange;
-                    int hashStart = 0, hashEnd = 65536;
+                    int hashStart = 0, hashEnd = MAX_HASH;
                     try {
-                        hashRange = new String(event.getData().getData());
+                        hashRange = new String(curr.getData());
                         String[] hrList = hashRange.split(",");
                         hashStart = Integer.parseInt(hrList[0]);
                         hashEnd = Integer.parseInt(hrList[1]);
@@ -135,8 +168,8 @@ public class ZkListener {
                     }
                     regionMetadata.addTable(tableName, hashStart, hashEnd);
                     logger.info("New table {} at {} is added", tableName, path);
-                } else if (event.getType() == TreeCacheEvent.Type.NODE_REMOVED && !event.getData().getPath().equals(path)) {
-                    String[] paths = event.getData().getPath().split("/");
+                } else if (type == CuratorCacheListener.Type.NODE_DELETED && !curr.getPath().equals(path)) {
+                    String[] paths = curr.getPath().split("/");
                     String tableName = paths[3];
                     regionMetadata.removeTable(tableName);
                     logger.info("Table {} at {} is removed", tableName, path);
@@ -155,6 +188,10 @@ public class ZkListener {
      */
     public void close() {
         try {
+            if (masterMasterListener != null) {
+                logger.info("Close master-master listener");
+                masterMasterListener.close();
+            }
             if (masterListener != null) {
                 logger.info("Close master listener");
                 masterListener.close();

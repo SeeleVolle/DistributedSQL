@@ -4,6 +4,7 @@ import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,18 +60,57 @@ public class ZkClient {
             zkListener.listenSlaves(); // Listen to slaves ZNode and its child nodes
             metadata.getRegions().add(regionMetadata);
         }
+        zkListener.listenMasterMaster();
+        try {
+            // TODO
+            if (zkClient.checkExists().forPath("/master/master") == null) {
+                // If no master-master, this master will be master-master
+                initMasterMaster();
+            } else {
+                // Or else, become master-slave.
+                initMasterSlave();
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
+
+    public Boolean iAmMasterMaster() {
+        return metadata.getIsMaster();
+    }
+
+    public void initMasterMaster() {
+        logger.info("I am trying to become Master-Master");
+        try {
+            metadata.setIsMaster(true);
+            zkClient.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL).forPath("/master/master");
+        } catch (Exception e) {
+            logger.error(e.getMessage());
+            logger.warn("Failed to become master-master, rolling back");
+            metadata.setIsMaster(false);
+        }
+
+    }
+
+    public void initMasterSlave() {
+        logger.info("I am becoming Master-Slave");
+        metadata.setIsMaster(false);
+    }
+
 
     /**
      * 创建ZNode
      *
      * @param path ZNode路径
      * @param data ZNode数据
-     * @throws Exception 创建ZNode失败
      */
-    public void createZNode(String path, String data) throws Exception {
+    public void createZNode(String path, String data) {
         if (!pathExist(path)) {
-            zkClient.create().creatingParentsIfNeeded().forPath(path, data.getBytes());
+            try {
+                zkClient.create().creatingParentsIfNeeded().forPath(path, data.getBytes());
+            } catch (Exception e) {
+                logger.error(e.getMessage());
+            }
         }
     }
 
@@ -78,11 +118,14 @@ public class ZkClient {
      * 创建无数据节点（默认数据为Client的IP地址）
      *
      * @param path ZNode路径
-     * @throws Exception 创建ZNode失败
      */
-    public void createZNode(String path) throws Exception {
+    public void createZNode(String path) {
         if (!pathExist(path)) {
-            zkClient.create().creatingParentsIfNeeded().forPath(path);
+            try {
+                zkClient.create().creatingParentsIfNeeded().forPath(path);
+            } catch (Exception e) {
+                logger.error(e.getMessage());
+            }
         }
     }
 
@@ -92,14 +135,14 @@ public class ZkClient {
      * @param path ZNode路径
      */
     private Boolean pathExist(String path) {
-        boolean isExsit = false;
+        boolean exist = false;
         try {
             Stat stat = zkClient.checkExists().forPath(path);
-            isExsit = stat != null;
+            exist = stat != null;
         } catch (Exception e) {
             logger.error(e.getMessage());
         }
-        return isExsit;
+        return exist;
     }
 
     /**
@@ -112,9 +155,11 @@ public class ZkClient {
         } else {
             logger.info("zkListener is null, no close operation for zkListener is needed.");
         }
+
         if (zkClient != null) {
             zkClient.close();
             zkClient = null;
+            logger.info("Connection to Zookeeper has closed");
         } else {
             logger.info("zkClient is null, no close operation for zkClient is needed.");
         }
