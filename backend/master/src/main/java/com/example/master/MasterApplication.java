@@ -3,7 +3,6 @@ package com.example.master;
 import com.example.master.utils.PersistenceHandler;
 import com.example.master.zookeeper.Metadata;
 import com.example.master.zookeeper.ZkClient;
-import com.example.master.zookeeper.ZkConfigs;
 import com.google.common.collect.Sets;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -32,16 +31,16 @@ public class MasterApplication {
         SpringApplication.run(MasterApplication.class, args);
     }
 
-    @Value("${zk.servers}")
-    private String zkServersConfDir;
+    @Value("${master.config}")
+    private String configDir;
 
     private ZkClient zkClient;
 
     @PostConstruct
     private void init() {
         try {
-            logger.info("zkServers config file: {}", zkServersConfDir);
-            ZkConfigs.zkServers = PersistenceHandler.loadZkServers(zkServersConfDir);
+            logger.info("zkServers config file: {}", configDir);
+            PersistenceHandler.loadConfigurations(configDir);
             String ipAddress = InetAddress.getLocalHost().getHostAddress();
             logger.info("Master Server IPv4 address is {}", ipAddress);
             this.zkClient = ZkClient.getInstance();

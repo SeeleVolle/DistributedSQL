@@ -54,7 +54,7 @@ public class ClientController {
             return new ApiResult(TABLE_NOT_EXIST.getStatus(), TABLE_NOT_EXIST.getMessage(), data);
         } else {
             data.put("hostNames", metadata.pickServer(tableName, Metadata.OperationType.INSERT_TABLE, pkValue));
-            return new ApiResult().ok().data(data).message("OK，返回一个负责处理查询操作的Region Master");
+            return new ApiResult().ok().data(data).message("OK，返回一个负责处理插入记录操作的Region Master");
         }
     }
 
@@ -66,7 +66,7 @@ public class ClientController {
             return new ApiResult(TABLE_NOT_EXIST.getStatus(), TABLE_NOT_EXIST.getMessage(), data);
         } else {
             data.put("hostNames", metadata.pickServer(tableName, Metadata.OperationType.UPDATE_TABLE, ""));
-            return new ApiResult().ok().data(data).message("OK，返回所有负责处理查询操作的Region Master");
+            return new ApiResult().ok().data(data).message("OK，返回所有负责处理更新记录操作的Region Master");
         }
     }
 
@@ -78,18 +78,19 @@ public class ClientController {
             return new ApiResult(TABLE_NOT_EXIST.getStatus(), TABLE_NOT_EXIST.getMessage(), data);
         } else {
             data.put("hostNames", metadata.pickServer(tableName, Metadata.OperationType.DELETE_TABLE, ""));
-            return new ApiResult().ok().data(data).message("OK，返回所有负责处理查询操作的Region Master");
+            return new ApiResult().ok().data(data).message("OK，返回所有负责处理删除记录操作的Region Master");
         }
     }
 
     @PostMapping("/drop_table")
     public ApiResult dropTable(String tableName) {
+        logger.info("Request drop table '{}'", tableName);
         JSONObject data = new JSONObject();
         if (!metadata.hasTable(tableName)) {
             return new ApiResult(TABLE_NOT_EXIST.getStatus(), TABLE_NOT_EXIST.getMessage(), data);
         } else {
             data.put("hostNames", metadata.pickServer(tableName, Metadata.OperationType.DROP_TABLE, ""));
-            return new ApiResult().ok().data(data).message("OK，返回所有负责处理查询操作的Region Master");
+            return new ApiResult().ok().data(data).message("OK，返回所有负责处理删除表操作的Region Master");
         }
     }
 

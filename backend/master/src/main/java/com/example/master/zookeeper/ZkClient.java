@@ -9,6 +9,7 @@ import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Vector;
 
 /**
@@ -32,7 +33,7 @@ public class ZkClient {
     }
 
     // Zookeeper 服务器的地址列表
-    private final Vector<String> zkServers;
+    private final List<String> zkServers;
     private final Metadata metadata;
     private CuratorFramework zkClient;
     private ZkListener zkListener;
