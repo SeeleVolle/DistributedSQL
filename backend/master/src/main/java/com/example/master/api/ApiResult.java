@@ -4,13 +4,13 @@ import lombok.Data;
 
 @Data
 public class ApiResult {
-    private int code;
+    private int status;
     private String message;
     private Object data;
 
     public ApiResult() {
-        this.code = ApiResultCode.SUCCESS.getCode();
-        this.message = ApiResultCode.SUCCESS.getMessage();
+        this.status = StatusCode.OK.getStatus();
+        this.message = StatusCode.OK.getMessage();
     }
 
     public ApiResult(Object data) {
@@ -18,26 +18,26 @@ public class ApiResult {
         this.data = data;
     }
 
-    public ApiResult(int code, String message) {
-        this.code = code;
+    public ApiResult(int status, String message) {
+        this.status = status;
         this.message = message;
     }
 
-    public ApiResult(int code, String message, Object data) {
-        this.code = code;
+    public ApiResult(int status, String message, Object data) {
+        this.status = status;
         this.message = message;
         this.data = data;
     }
 
-    public ApiResult success() {
-        this.code = ApiResultCode.SUCCESS.getCode();
-        this.message = ApiResultCode.SUCCESS.getMessage();
+    public ApiResult ok() {
+        this.status = StatusCode.OK.getStatus();
+        this.message = StatusCode.OK.getMessage();
         return this;
     }
 
     public ApiResult failed() {
-        this.code = ApiResultCode.FAILED.getCode();
-        this.message = ApiResultCode.FAILED.getMessage();
+        this.status = StatusCode.EXCEPTION.getStatus();
+        this.message = StatusCode.EXCEPTION.getMessage();
         return this;
     }
 

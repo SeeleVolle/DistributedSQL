@@ -1,13 +1,15 @@
 package com.example.master.zookeeper;
 
-import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Vector;
+
+import static com.example.master.zookeeper.ZkConfigs.MAX_HASH;
 
 /**
  * Metadata class is a singleton class that holds the metadata of the system
@@ -21,27 +23,28 @@ public class Metadata {
     public static class RegionMetadata {
 
         @Data
+        @AllArgsConstructor
+        @NoArgsConstructor
         public static class Table {
-            private Integer hashStart;
-            private Integer hashEnd;
+            private Integer start;
+            private Integer end;
             private String tableName;
         }
 
         private static final Logger logger = LoggerFactory.getLogger(RegionMetadata.class);
 
         public static Integer hash(String value) {
-            return value.hashCode() % 65536;
+            return value.hashCode() % MAX_HASH;
         }
 
         volatile private String master; // 区域内主节点的HostName
-        volatile private List<Table> tables; // 区域内负责存储的表
+        volatile private Set<Table> tables; // 区域内负责存储的表
         volatile private List<String> slaves; // 区域内从节点的HostName
-        // private int number; // 暂时没有用处
         volatile private int visitCount;
 
 
         public RegionMetadata() {
-            this.tables = new Vector<>();
+            this.tables = new HashSet<>();
             this.slaves = new Vector<>();
             this.visitCount = 0;
             this.master = "";
@@ -79,7 +82,7 @@ public class Metadata {
             for (Table table : tables) {
                 if (table.tableName.equals(tableName)) {
                     Integer hashValue = hash(pkValue);
-                    if (hashValue < table.hashEnd && hashValue >= table.hashStart) {
+                    if (hashValue < table.end && hashValue >= table.start) {
                         return true;
                     }
                 }
@@ -117,8 +120,8 @@ public class Metadata {
             } else {
                 Table t = new Table();
                 t.tableName = table;
-                t.hashStart = hashStart; // Inclusive
-                t.hashEnd = hashEnd; // Exclusive
+                t.start = hashStart; // Inclusive
+                t.end = hashEnd; // Exclusive
                 logger.info("{}", t);
                 tables.add(t);
             }
@@ -165,9 +168,13 @@ public class Metadata {
     }
 
     private List<RegionMetadata> regions;
+//    private Set<String> masterSlaves;
+    private Boolean isMaster;
 
     private Metadata() {
         this.regions = new Vector<>();
+//        this.masterSlaves = new HashSet<>();
+        this.isMaster = false;
     }
 
     /**
@@ -206,6 +213,7 @@ public class Metadata {
         QUERY_TABLE,
         INSERT_TABLE,
         UPDATE_TABLE,
+        DELETE_TABLE,
         WRITE_TABLE
     }
 
@@ -216,16 +224,24 @@ public class Metadata {
      * @param type      操作类型，可以是QUERY_TABLE, CREATE_TABLE, WRITE_TABLE(SQL的INSERT, UPDATE, DROP...写操作都属于WRITE_TABLE)
      * @return 返回被选择的服务器IP地址
      */
-    public String pickServer(String tableName, OperationType type) {
-        String hostName = "null";
+    public List<String> pickServer(String tableName, OperationType type, String pkValue) {
+        List<String> hostName = new Vector<>();
         switch (type) {
+            case DELETE_TABLE:
             case DROP_TABLE:
-            case QUERY_TABLE:
-                // 返回存在被查询的表所在的所有Regions
+            case UPDATE_TABLE:
                 for (var region : regions) {
-                    // TODO： 查询table可能有必要返回多个HostName，因为不同Region可能都存有相同，但是查询需要查询每个region
                     if (region.hasTable(tableName)) {
-                        hostName = region.pickHandleSlave(); // 轮询region内的服务器来处理查询
+                        hostName.add(region.getMaster()); // 轮询region内的服务器来处理查询
+                        region.incrementVisitCount();
+                    }
+                }
+                break;
+            case QUERY_TABLE:
+                // 返回存在被查询的表所在的所有Regions' slaves
+                for (var region : regions) {
+                    if (region.hasTable(tableName)) {
+                        hostName.add(region.pickHandleSlave()); // 轮询region内的服务器来处理查询
                         region.incrementVisitCount();
                     }
                 }
@@ -239,7 +255,6 @@ public class Metadata {
                         int nTables = region.getTables().size();
                         if (nTables < minNTables) {
                             minNTables = nTables;
-                            hostName = region.getMaster(); // 由master去下达指令给region的所有服务器
                             minRegion = region;
                         }
                     } else {
@@ -247,29 +262,16 @@ public class Metadata {
                     }
                 }
                 if (minRegion != null) {
+                    hostName.add(minRegion.getMaster()); // 由master去下达指令给region的所有服务器
                     minRegion.incrementVisitCount();
                 }
                 break;
 
-            case WRITE_TABLE:
-                for (var region : regions) {
-                    if (region.hasTable(tableName)) {
-                        hostName = region.getMaster(); // 由master去下达指令给region的所有服务器
-                        region.incrementVisitCount();
-                    } else {
-                        logger.warn("Region with master {} doesn't have table {}", region.master, tableName);
-                    }
-                }
-                break;
-
-            // TODO
             case INSERT_TABLE:
-            case UPDATE_TABLE:
-                // 返回负责处理insert/update的Region Master
+                // 返回负责处理insert的Region Master
                 for (var region : regions) {
-                    String pkValue = "pkValue";
                     if (region.pkValueBelongThisRegion(tableName, pkValue)) {
-                        hostName = region.getMaster();
+                        hostName.add(region.getMaster());
                         region.incrementVisitCount();
                     } else {
                         logger.warn("{} in table {} doesn't belong to region with master {}", pkValue, tableName, region.master);

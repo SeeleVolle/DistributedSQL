@@ -419,7 +419,7 @@ public class RegionApplication {
                 while(primary_rs.next()){
                     String primaryValue = primary_rs.getString(1);
                     int hash = primaryValue.hashCode();
-                    if(hash >= start && hash <= end){
+                    if(hash >= start && hash < end){
                         //在target上插入
                         PreparedStatement source_row_sql = databaseConnection.getConnection().prepareStatement("SELECT * FROM " + tableName + " WHERE " + primaryName + " = " + primaryValue);
                         ResultSet source_rs = source_row_sql.executeQuery();
