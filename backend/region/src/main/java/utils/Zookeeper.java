@@ -133,17 +133,23 @@ public class Zookeeper {
         WriteTableMeta();
     }
 
-    public void masterUpdated(Integer regionID, Integer serverID, String localaddr) throws Exception {
-        System.out.println("Region "+ regionID + " Server "+ serverID +" Trying to be new master...");
-        //1. 更新zk中的master信息，number信息, 以及子目录信息
-        this.isMaster = true;
-        Integer number = Integer.parseInt(new String(client.getData().forPath("/region" + regionID + "/number")));
-        client.create().withMode(CreateMode.EPHEMERAL).forPath("/region" + regionID + "/master", localaddr.getBytes());
-        client.delete().forPath("/region" + regionID + "/slaves/slave" + serverID);
-        //2. 停止对master目录的监听
-        masterListener.stoplistening();
-        //3. 更新tables目录
-        WriteTableMeta();
+    public void masterUpdated(Integer regionID, Integer serverID, String localaddr)  {
+        try{
+            System.out.println("Region "+ regionID + " Server "+ serverID +" Trying to be new master...");
+            //1. 更新zk中的master信息，number信息, 以及子目录信息
+            this.isMaster = true;
+            Integer number = Integer.parseInt(new String(client.getData().forPath("/region" + regionID + "/number")));
+            client.create().withMode(CreateMode.EPHEMERAL).forPath("/region" + regionID + "/master", localaddr.getBytes());
+            client.delete().forPath("/region" + regionID + "/slaves/slave" + serverID);
+            //2. 停止对master目录的监听
+            masterListener.stoplistening();
+            //3. 更新tables目录
+            WriteTableMeta();
+        } catch(Exception e){
+            e.printStackTrace();
+            System.out.println("Region server " + localaddr + " failed to update zkserver");
+        }
+        System.out.println("Region "+ regionID + " Server "+ serverID +" is new master");
     }
 
     public void slaveInit(Integer regionID, Integer serverID, String localaddr, Integer number) throws Exception {

@@ -481,7 +481,7 @@ class TransfrerMeta{
 
     }
 
-    public  String getTableName(){return tableName;}
+    public String getTableName(){return tableName;}
     public int getStart(){return start;}
     public int getEnd(){return end;}
 }
