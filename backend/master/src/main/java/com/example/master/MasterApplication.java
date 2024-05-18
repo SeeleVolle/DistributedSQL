@@ -2,7 +2,6 @@ package com.example.master;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
-import com.example.master.api.StatusCode;
 import com.example.master.utils.Configs;
 import com.example.master.utils.PersistenceHandler;
 import com.example.master.zookeeper.Metadata;
@@ -62,7 +61,8 @@ public class MasterApplication {
 
     private Integer requestVisitCount(String hostName) {
         RestTemplate rt = new RestTemplate();
-        String requestUrl = "http://" + hostName.substring(0, hostName.length() - 4) + Configs.REGION_SERVER_PORT + "/visiting";
+
+        String requestUrl = "http://" + hostName.replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT) + "/visiting";
         logger.info("Request visit count URL is {}", requestUrl);
         String result = "";
         try {
@@ -80,7 +80,7 @@ public class MasterApplication {
 
     private void requestSetZeroVisitCount(String hostName) {
         RestTemplate rt = new RestTemplate();
-        String requestUrl = "http://" + hostName.substring(0, hostName.length() - 4) + Configs.REGION_SERVER_PORT + "/visitingClear";
+        String requestUrl = "http://" + hostName.replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT) + "/visitingClear";
         logger.info("Request clear visit count URL is {}", requestUrl);
         String result = "";
         try {
@@ -177,7 +177,10 @@ public class MasterApplication {
 
         try {
             RestTemplate rt = new RestTemplate();
-            String requestUrl = "http://" + maxRegion + "/hotsend?targetIP=" + minRegion;
+            String requestUrl = "http://"
+                    + maxRegion.replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT)
+                    + "/hotsend?targetIP="
+                    + minRegion.replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT);
             logger.info("Move data request URL: {}", requestUrl);
             String r = rt.postForObject(requestUrl, minRegionTables, String.class);
             logger.info("Hotpoint synchronization result: {}", r);
