@@ -1,5 +1,6 @@
 package com.example.master.zookeeper;
 
+import com.example.master.utils.Configs;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -10,7 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
-import static com.example.master.zookeeper.ZkConfigs.MAX_HASH;
+import static com.example.master.utils.Configs.MAX_HASH;
 
 /**
  * Implementation of Zookeeper listener for master server
@@ -37,7 +38,7 @@ public class ZkListener {
      * @param regionMetadata Instance of RegionMetadata
      */
     public ZkListener(Integer regionId, Metadata.RegionMetadata regionMetadata) {
-        List<String> zkServers = ZkConfigs.zkServers;
+        List<String> zkServers = Configs.ZK_SERVERS;
         RetryPolicy retryPolicy = new ExponentialBackoffRetry(3000, 1);
         this.curatorFramework = CuratorFrameworkFactory.newClient(String.join(",", zkServers), 5000, 5000, retryPolicy);
         this.regionId = regionId;
@@ -87,13 +88,13 @@ public class ZkListener {
      * 监听对应Region的master主节点目录
      */
     public void listenMaster() {
-        String path = ZkConfigs.generateRegionPath(regionId) + Paths.MASTER.getPath();
+        String path = Configs.generateRegionPath(regionId) + Paths.MASTER.getPath();
         try {
             masterListener = CuratorCache.builder(curatorFramework, path).build();
             masterListener.listenable().addListener((type, old, curr) -> {
                 try {
-                    byte[] data = curr.getData();
-                    if (data != null) {
+                    if (curr != null) {
+                        byte[] data = curr.getData();
                         String master = new String(data);
                         regionMetadata.setMaster(master);
                         logger.info("New master {} at {}.", master, path);
@@ -117,7 +118,7 @@ public class ZkListener {
      * 监听对应Region下的slaves从节点，如果有slaves增加、减少、改变，都会被检测到，并实时更新到RegionMetadata中
      */
     public void listenSlaves() {
-        String path = ZkConfigs.generateRegionPath(regionId) + Paths.SLAVE.getPath();
+        String path = Configs.generateRegionPath(regionId) + Paths.SLAVE.getPath();
         try {
             slavesListener = CuratorCache.builder(curatorFramework, path).build();
             slavesListener.listenable().addListener((type, old, curr) -> {
@@ -145,7 +146,7 @@ public class ZkListener {
      * 如同以上监听方法，唯独不同是监听tables的变化
      */
     public void listenTables() {
-        String path = ZkConfigs.generateRegionPath(regionId) + Paths.TABLE.getPath();
+        String path = Configs.generateRegionPath(regionId) + Paths.TABLE.getPath();
         try {
             tablesListener = CuratorCache.builder(curatorFramework, path).build();
             tablesListener.listenable().addListener((type, old, curr) -> {

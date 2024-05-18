@@ -1,6 +1,7 @@
 package com.example.master.api;
 
 import com.alibaba.fastjson2.JSONObject;
+import com.example.master.MasterApplication;
 import com.example.master.zookeeper.Metadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
