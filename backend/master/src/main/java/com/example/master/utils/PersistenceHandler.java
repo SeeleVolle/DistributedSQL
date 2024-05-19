@@ -9,6 +9,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 
+/**
+ * 负责Master服务器数据持久化相关的工具类
+ */
 public class PersistenceHandler {
     private static final Logger logger = LoggerFactory.getLogger(PersistenceHandler.class);
 
@@ -24,8 +27,14 @@ public class PersistenceHandler {
             Configs.MAX_REGION = jsonObject.getInteger("MAX_REGION");
             Configs.MAX_HASH = jsonObject.getInteger("MAX_HASH");
             Configs.REGION_SERVER_PORT = jsonObject.getInteger("REGION_SERVER_PORT");
+            if (jsonObject.getBoolean("REGION_SERVER_HTTPS")) {
+                Configs.REGION_SERVER_HTTPS = "https";
+            } else {
+                Configs.REGION_SERVER_HTTPS = "http";
+            }
+            logger.info("Configurations loaded...");
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            logger.error(e.getMessage());
         }
 
     }

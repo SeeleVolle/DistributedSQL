@@ -33,6 +33,11 @@ public class Metadata {
 
         private static final Logger logger = LoggerFactory.getLogger(RegionMetadata.class);
 
+        /**
+         *
+         * @param value 被哈希的值
+         * @return 返回哈希值
+         */
         public static Integer hash(String value) {
             return value.hashCode() % MAX_HASH;
         }
@@ -50,6 +55,7 @@ public class Metadata {
             this.master = "";
         }
 
+        @Deprecated
         synchronized public void incrementVisitCount() {
             this.visitCount++;
         }
@@ -240,7 +246,7 @@ public class Metadata {
                 for (var region : regions) {
                     if (region.hasTable(tableName)) {
                         hostName.add(region.pickHandleSlave()); // 轮询region内的服务器来处理查询
-                        region.incrementVisitCount();
+
                     }
                 }
                 break;

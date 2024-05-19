@@ -18,7 +18,11 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.Inet4Address;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Set;
 import java.util.Vector;
@@ -44,10 +48,24 @@ public class MasterApplication {
         try {
             logger.info("zkServers config file: {}", configDir);
             PersistenceHandler.loadConfigurations(configDir);
-            String ipAddress = InetAddress.getLocalHost().getHostAddress();
-            logger.info("Master Server IPv4 address is {}", ipAddress);
+            try {
+                Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
+                while (networkInterfaces.hasMoreElements()) {
+                    NetworkInterface networkInterface = networkInterfaces.nextElement();
+                    Enumeration<InetAddress> addresses = networkInterface.getInetAddresses();
+                    while (addresses.hasMoreElements()) {
+                        InetAddress address = addresses.nextElement();
+                        if (!address.isLoopbackAddress() && address instanceof Inet4Address) {
+                            logger.info("Master Server IPv4 on {} is {}", networkInterface.getName(), address.getHostAddress());
+                        }
+                    }
+                }
+            } catch (SocketException ex) {
+                logger.error(ex.getMessage());
+            }
             this.zkClient = ZkClient.getInstance();
             this.zkClient.init();
+            logger.info("Initialization completed successfully");
         } catch (Exception e) {
             logger.error(e.getMessage());
         }
@@ -62,7 +80,7 @@ public class MasterApplication {
     private Integer requestVisitCount(String hostName) {
         RestTemplate rt = new RestTemplate();
 
-        String requestUrl = "http://" + hostName.replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT) + "/visiting";
+        String requestUrl = Configs.REGION_SERVER_HTTPS + "://" + hostName.replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT) + "/visiting";
         logger.info("Request visit count URL is {}", requestUrl);
         String result = "";
         try {
@@ -80,7 +98,7 @@ public class MasterApplication {
 
     private void requestSetZeroVisitCount(String hostName) {
         RestTemplate rt = new RestTemplate();
-        String requestUrl = "http://" + hostName.replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT) + "/visitingClear";
+        String requestUrl = Configs.REGION_SERVER_HTTPS + "://" + hostName.replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT) + "/visitingClear";
         logger.info("Request clear visit count URL is {}", requestUrl);
         String result = "";
         try {
@@ -100,9 +118,9 @@ public class MasterApplication {
      */
     @Scheduled(fixedRate = 10000)
     public void hotPointChecker() {
-        logger.info("Checking hot point");
         Metadata metadata = Metadata.getInstance();
         if (metadata.getIsMaster()) {
+            logger.info("Checking hot point");
             int min = Integer.MAX_VALUE, max = Integer.MIN_VALUE, writableRegionCount = 0;
             Metadata.RegionMetadata maxRegion = null, minRegion = null;
             for (var region : metadata.getRegions()) {
@@ -135,8 +153,8 @@ public class MasterApplication {
                 logger.info("Hot point synchronisation is processing");
                 Set<Metadata.RegionMetadata.Table> tablesToMove = maxRegion.getTables();
                 String
-                        maxRegionHostName = maxRegion.getMaster().substring(0, maxRegion.getMaster().length() - 4) + Configs.REGION_SERVER_PORT,
-                        minRegionHostName = minRegion.getMaster().substring(0, minRegion.getMaster().length() - 4) + Configs.REGION_SERVER_PORT;
+                        maxRegionHostName = maxRegion.getMaster().replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT),
+                        minRegionHostName = minRegion.getMaster().replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT);
                 requestSyncTables(maxRegionHostName, minRegionHostName, tablesToMove);
                 for (var region : metadata.getRegions()) {
                     requestSetZeroVisitCount(region.getMaster());
@@ -164,20 +182,16 @@ public class MasterApplication {
                         minT = new Metadata.RegionMetadata.Table(mid, end, tableName);
                 maxRegionTables.add(maxT);
                 minRegionTables.add(minT);
+                logger.info("Max: {}", maxT);
+                logger.info("Min: {}", minT);
             } else {
                 logger.warn("Partition size is already minimal, no repartition on table {} is required", tableName);
             }
         }
-        for (var t : maxRegionTables) {
-            logger.info("Max: {}", t);
-        }
-        for (var t : minRegionTables) {
-            logger.info("Min: {}", t);
-        }
 
         try {
             RestTemplate rt = new RestTemplate();
-            String requestUrl = "http://"
+            String requestUrl = Configs.REGION_SERVER_HTTPS + "://"
                     + maxRegion.replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT)
                     + "/hotsend?targetIP="
                     + minRegion.replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT);
