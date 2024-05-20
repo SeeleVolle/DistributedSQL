@@ -127,7 +127,7 @@ public class ZkListener {
                     String connectStr = new String(data);
                     regionMetadata.addSlave(connectStr);
                     logger.info("New slave {} at {} is added", connectStr, path);
-                } else if (type == CuratorCacheListener.Type.NODE_DELETED && !curr.getPath().equals(path)) {
+                } else if (type == CuratorCacheListener.Type.NODE_DELETED && !old.getPath().equals(path)) {
                     // slaveNode 被删除（更新可用数量与路由信息列表）
                     String connectStr = new String(old.getData());
                     regionMetadata.removeSlave(connectStr);
@@ -150,30 +150,45 @@ public class ZkListener {
         try {
             tablesListener = CuratorCache.builder(curatorFramework, path).build();
             tablesListener.listenable().addListener((type, old, curr) -> {
-                if (type == CuratorCacheListener.Type.NODE_CREATED && !curr.getPath().equals(path)) {
-                    String[] paths = curr.getPath().split("/");
-                    String tableName = paths[3];
-                    String hashRange;
-                    int hashStart = 0, hashEnd = MAX_HASH;
-                    try {
-                        hashRange = new String(curr.getData());
-                        String[] hrList = hashRange.split(",");
-                        hashStart = Integer.parseInt(hrList[0]);
-                        hashEnd = Integer.parseInt(hrList[1]);
-                    } catch (Exception e) {
-                        if (e instanceof NullPointerException) {
-                            logger.warn("Table's node data is null, which mean normal creation of table");
-                        } else {
-                            logger.error(e.getMessage());
+                String[] paths;
+                switch (type) {
+                    case NODE_CHANGED:
+                    case NODE_CREATED:
+                        paths = curr.getPath().split("/");
+                        if (paths.length == 4) {
+                            String tableName = paths[3];
+                            String hashRange;
+                            int hashStart = 0, hashEnd = MAX_HASH;
+                            try {
+                                hashRange = new String(curr.getData());
+                                String[] hrList = hashRange.split(",");
+                                hashStart = Integer.parseInt(hrList[0]);
+                                hashEnd = Integer.parseInt(hrList[1]);
+                                logger.info("Hash range is [{},{})", hashStart, hashEnd);
+                            } catch (Exception e) {
+                                if (e instanceof NullPointerException) {
+                                    logger.warn("Table's node data is null, which mean normal creation of table");
+                                } else {
+                                    logger.error(e.getMessage());
+                                }
+                            }
+                            if (type == CuratorCacheListener.Type.NODE_CREATED) {
+                                regionMetadata.addTable(tableName, hashStart, hashEnd);
+                                logger.info("New table {} at {} is added", tableName, path);
+                            } else {
+                                regionMetadata.updateTable(tableName, hashStart, hashEnd);
+                                logger.info("Updated table {} at {}", tableName, path);
+                            }
                         }
-                    }
-                    regionMetadata.addTable(tableName, hashStart, hashEnd);
-                    logger.info("New table {} at {} is added", tableName, path);
-                } else if (type == CuratorCacheListener.Type.NODE_DELETED && !curr.getPath().equals(path)) {
-                    String[] paths = curr.getPath().split("/");
-                    String tableName = paths[3];
-                    regionMetadata.removeTable(tableName);
-                    logger.info("Table {} at {} is removed", tableName, path);
+                        break;
+                    case NODE_DELETED:
+                        paths = old.getPath().split("/");
+                        if (paths.length == 4) {
+                            String tableName = paths[3];
+                            regionMetadata.removeTable(tableName);
+                            logger.info("Table {} at {} is removed", tableName, path);
+                        }
+                        break;
                 }
             });
             tablesListener.start();

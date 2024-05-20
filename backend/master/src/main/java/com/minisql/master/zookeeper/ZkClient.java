@@ -55,6 +55,7 @@ public class ZkClient {
     private void initMetadata() {
         for (int i = 0; i < Configs.MAX_REGION; i++) {
             Metadata.RegionMetadata regionMetadata = new Metadata.RegionMetadata();
+            regionMetadata.setRegionId(i);
             zkListener = new ZkListener(zkClient, i, regionMetadata);
             zkListener.listenMaster(); // Listen to master ZNode
             zkListener.listenTables(); // Listen to tables ZNode and its child nodes

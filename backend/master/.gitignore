@@ -40,3 +40,4 @@ out/
 target/
 keyStore.p12
 *.log
+*.zip

@@ -9,6 +9,8 @@ import com.minisql.master.zookeeper.ZkClient;
 import com.google.common.collect.Sets;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,6 +20,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.client.RestTemplate;
 
 import java.net.Inet4Address;
@@ -29,7 +32,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.Vector;
 
-import static com.minisql.master.utils.Configs.HOTPOINT_THRESHOLD;
+import static com.minisql.master.utils.Configs.MAX_HOTPOINT_THRESHOLD;
+import static com.minisql.master.utils.Configs.MIN_HOTPOINT_THRESHOLD;
 
 @SpringBootApplication
 @EnableScheduling
@@ -147,8 +151,14 @@ public class MasterApplication {
             }
             if (maxRegion != null) {
                 for (var region : metadata.getRegions()) {
-                    Sets.SetView<Metadata.RegionMetadata.Table> intersection = Sets.intersection(maxRegion.getTables(), region.getTables());
-                    if (region.getVisitCount() < min && region.isOnline() && intersection.isEmpty()) {
+                    boolean regionHasTable = false;
+                    for (var t : maxRegion.getTables()) {
+                        if (region.hasTable(t.getTableName())) {
+                            regionHasTable = true;
+                            break;
+                        }
+                    }
+                    if (region.getVisitCount() < min && region.isOnline() && !regionHasTable) {
                         writableRegionCount++;
                         min = region.getVisitCount();
                         minRegion = region;
@@ -160,13 +170,15 @@ public class MasterApplication {
             }
 
             // 符合热点迁移条件，将Max Region中的半数数据表迁移至Min Region
-            if ((maxRegion != null && minRegion != null) && (writableRegionCount >= 2 && max > 2 * min && max > HOTPOINT_THRESHOLD)) {
+            if ((maxRegion != null && minRegion != null) && (writableRegionCount >= 2 && max > 2 * min && max > MAX_HOTPOINT_THRESHOLD && min > MIN_HOTPOINT_THRESHOLD)) {
                 logger.info("Hot point synchronisation is processing");
                 Set<Metadata.RegionMetadata.Table> tablesToMove = maxRegion.getTables();
                 String
                         maxRegionHostName = maxRegion.getMaster().replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT),
                         minRegionHostName = minRegion.getMaster().replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT);
-                requestSyncTables(maxRegionHostName, minRegionHostName, tablesToMove);
+                if (!tablesToMove.isEmpty()) {
+                    requestSyncTables(maxRegionHostName, minRegionHostName, tablesToMove, minRegion.getRegionId());
+                }
                 for (var region : metadata.getRegions()) {
                     requestSetZeroVisitCount(region.getMaster());
                     region.setZeroVisitCount();
@@ -181,23 +193,44 @@ public class MasterApplication {
 
     }
 
-    public void requestSyncTables(String maxRegion, String minRegion, Set<Metadata.RegionMetadata.Table> tables) {
-        List<Metadata.RegionMetadata.Table> maxRegionTables = new Vector<>(), minRegionTables = new Vector<>();
+    @Data
+    private static class Table {
+        public Table(String tableName, int targetStart, int targetEnd, int originalStart, int originalEnd) {
+            this.tableName = tableName;
+            this.targetStart = targetStart;
+            this.targetEnd = targetEnd;
+            this.originalStart = originalStart;
+            this.originalEnd = originalEnd;
+        }
+
+        private String tableName;
+        private int targetStart;
+        private int targetEnd;
+        private int originalStart;
+        private int originalEnd;
+    }
+
+    public void requestSyncTables(String maxRegion, String minRegion, Set<Metadata.RegionMetadata.Table> tables, int targetRegionId) {
+        logger.info("Need to move from {} to {} on region {}", maxRegion, minRegion, targetRegionId);
+        List<Table> tablesToMove = new Vector<>();
         for (var table : tables) {
             String tableName = table.getTableName();
             int start = table.getStart(), end = table.getEnd();
             if (end - start > 1) {
                 int mid = (start + end) / 2;
-                Metadata.RegionMetadata.Table
-                        maxT = new Metadata.RegionMetadata.Table(start, mid, tableName),
-                        minT = new Metadata.RegionMetadata.Table(mid, end, tableName);
-                maxRegionTables.add(maxT);
-                minRegionTables.add(minT);
-                logger.info("Max: {}", maxT);
-                logger.info("Min: {}", minT);
+                tablesToMove.add(new Table(tableName, mid, end, start, mid));
             } else {
                 logger.warn("Partition size is already minimal, no repartition on table {} is required", tableName);
             }
+        }
+        for (var table : tablesToMove) {
+            logger.info("Table {} Original[{},{}) Target[{},{})",
+                    table.getTableName(),
+                    table.getOriginalStart(),
+                    table.getOriginalEnd(),
+                    table.getTargetStart(),
+                    table.getTargetEnd()
+            );
         }
 
         try {
@@ -205,9 +238,10 @@ public class MasterApplication {
             String requestUrl = Configs.REGION_SERVER_HTTPS + "://"
                     + maxRegion.replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT)
                     + "/hotsend?targetIP="
-                    + minRegion.replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT);
+                    + minRegion.replaceFirst(":[0-9]+", "")
+                    + "&targetRegionID=" + targetRegionId;
             logger.info("Move data request URL: {}", requestUrl);
-            String r = rt.postForObject(requestUrl, minRegionTables, String.class);
+            String r = rt.postForObject(requestUrl, tablesToMove, String.class);
             logger.info("Hotpoint synchronization result: {}", r);
         } catch (Exception e) {
             logger.error(e.getMessage());

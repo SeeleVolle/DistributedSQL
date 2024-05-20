@@ -34,7 +34,6 @@ public class Metadata {
         private static final Logger logger = LoggerFactory.getLogger(RegionMetadata.class);
 
         /**
-         *
          * @param value 被哈希的值
          * @return 返回哈希值
          */
@@ -46,6 +45,7 @@ public class Metadata {
         volatile private Set<Table> tables; // 区域内负责存储的表
         volatile private List<String> slaves; // 区域内从节点的HostName
         volatile private int visitCount;
+        volatile private int regionId;
 
 
         public RegionMetadata() {
@@ -125,6 +125,20 @@ public class Metadata {
             }
         }
 
+        synchronized public void updateTable(String table, int hashStart, int hashEnd) {
+            if (hasTable(table)) {
+                for (Table t : tables) {
+                    if (t.tableName.equals(table)) {
+                        t.start = hashStart;
+                        t.end = hashEnd;
+                        logger.info("Table '{}' updated to {}", table, t);
+                    }
+                }
+            } else {
+                logger.warn("Table '{}' doesn't exists", table);
+            }
+        }
+
         synchronized public void removeTable(String table) {
             if (!hasTable(table)) {
                 logger.warn("Table '{}' doesn't exist", table);
@@ -157,6 +171,7 @@ public class Metadata {
 
         /**
          * Region是否上线
+         *
          * @return 透过查看是否有master判断region是否online，online的region必须可读可写
          */
         synchronized public Boolean isOnline() {
