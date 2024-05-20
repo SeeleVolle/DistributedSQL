@@ -57,9 +57,9 @@ public class RegionApplication {
         try{
             //获取本机地址：ip:port
             String ip = InetAddress.getLocalHost().getHostAddress();
-            System.out.println("本机IP地址：" + ip);
+            System.out.println("Server IP address：" + ip);
             String localaddr = ip+":"+port;
-//            获取数据库连接
+//            获取数据库连接z
             String url = "jdbc:mysql://"+ ip + ":3306/DISTRIBUTED";
             databaseConnection = new DatabaseConnection(url, username, password);
             databaseConnection.connect();
@@ -331,6 +331,25 @@ public class RegionApplication {
         }
     }
 
+    public void forwardToTarget(String sql, String type, String tableName, String targetIP){
+        RestTemplate restTemplate = new RestTemplate();
+        String slaveurl = "http://" + targetIP + ":9090/" +  type;
+        //设置参数
+        JSONObject params = new JSONObject();
+        params.put("sql", sql);
+        params.put("tableName", tableName);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<JSONObject> requestEntity = new HttpEntity<>(params, headers);
+        ResponseEntity<String> responseEntity = restTemplate.exchange(slaveurl, HttpMethod.POST, requestEntity, String.class);
+        int statusCode = responseEntity.getStatusCode().value();
+        if (statusCode == 200) {
+            System.out.println("Forward to " + targetIP + " successfully.");
+        } else {
+            System.out.println("Forward to " + targetIP + " failed.");
+        }
+    }
+
     public boolean vote(String sql, String tableName, long myCRCResult) throws SQLException {
         List<String> slavesAddrs = zookeeper.getSlaves();
         int supports_num = 1;
@@ -410,8 +429,8 @@ public class RegionApplication {
                     }
                 }
                 if(!isExist){
-                    PreparedStatement targetStmt_Create = target_conn.prepareStatement(tableCopy.generateCreateStatment(databaseConnection.getConnection(), tableName));
-                    targetStmt_Create.executeUpdate();
+                    String createSQL = tableCopy.generateCreateStatment(databaseConnection.getConnection(), tableName);
+                    forwardToTarget(createSQL, "create", tableName, targetIP);
                 }
                 PreparedStatement ps = databaseConnection.getConnection().prepareStatement("SELECT "+ primaryName +" FROM " + tableName);
                 ResultSet primary_rs = ps.executeQuery();
@@ -420,7 +439,7 @@ public class RegionApplication {
                     String primaryValue = primary_rs.getString(1);
                     int hash = primaryValue.hashCode();
                     if(hash >= start && hash < end){
-                        //在target上插入
+                        //在target上插入, 需要调用相应的接口
                         PreparedStatement source_row_sql = databaseConnection.getConnection().prepareStatement("SELECT * FROM " + tableName + " WHERE " + primaryName + " = " + primaryValue);
                         ResultSet source_rs = source_row_sql.executeQuery();
                         ResultSetMetaData source_rs_metadata= source_rs.getMetaData();
@@ -430,11 +449,16 @@ public class RegionApplication {
                             for(int i = 1; i <= columns; i++){
                                 target_ps_insert.setObject(i, source_rs.getObject(i));
                             }
-                            target_ps_insert.executeUpdate();
+                            String insertSQL = getSQLString(target_ps_insert);
+                            forwardToTarget(insertSQL, "update", tableName, targetIP);
                         }
-                        //在source上删除
-                        PreparedStatement source_ps_delete = databaseConnection.getConnection().prepareStatement("DELETE FROM " + tableName + " WHERE " + primaryName + " = " + primaryValue);
+                        //在source上删除, 同步删除
+                        String deleteSQL = "DELETE FROM " + tableName + " WHERE " + primaryName + " = " + primaryValue;
+                        PreparedStatement source_ps_delete = databaseConnection.getConnection().prepareStatement(deleteSQL);
                         source_ps_delete.executeUpdate();
+                        CheckSum checkSum = new CheckSum(databaseConnection);
+                        long myCRCResult = checkSum.getCRC4Table(tableName);
+                        forward(deleteSQL, "update", tableName, myCRCResult);
                     }
                 }
             }
@@ -448,6 +472,11 @@ public class RegionApplication {
         }
 
         return res;
+    }
+
+    public String getSQLString(PreparedStatement ps){
+        String toString = ps.toString();
+        return toString.substring(toString.lastIndexOf(":")+1).trim();
     }
 
     @RequestMapping("/visiting")

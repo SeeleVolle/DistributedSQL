@@ -8,10 +8,7 @@ import org.apache.curator.framework.recipes.cache.CuratorCacheListener;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.CreateMode;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.*;
 
 import static java.lang.System.exit;
@@ -45,6 +42,8 @@ public class Zookeeper {
     private Integer regionID;
     //serverID是本Server在对应Region中的ID，通过/regiin+regionID/server+serverID来唯一标识Zookeeper中的一个节点
     private Integer serverID;
+
+    static int MAX_HASH = 65536;
 
 
     public Zookeeper(String localaddr, String zkServerAddr, DatabaseConnection databaseConnection, Integer maxRegions, Integer maxServers) {
@@ -144,7 +143,7 @@ public class Zookeeper {
             //2. 停止对master目录的监听
             masterListener.stoplistening();
             //3. 更新tables目录
-            WriteTableMeta();
+            //WriteTableMeta();
         } catch(Exception e){
             e.printStackTrace();
             System.out.println("Region server " + localaddr + " failed to update zkserver");
@@ -199,12 +198,31 @@ public class Zookeeper {
     public void WriteTableMeta(){
         try{
             Connection conn = databaseConnection.getConnection();
+            DatabaseMetaData dbmd = conn.getMetaData();
             PreparedStatement ps = conn.prepareStatement("show tables");
             ResultSet rs = ps.executeQuery();
             while(rs.next()){
                 String tableName = rs.getString(1);
                 System.out.println("Write table meta: " + tableName);
-                client.create().withMode(CreateMode.EPHEMERAL).forPath("/region" + regionID + "/tables/" + tableName, "0,65536".getBytes());
+                //获取主键哈希范围并写入到Zookeeper中
+                String tableHashRange = "";
+                ResultSet primaryKeys = dbmd.getPrimaryKeys(null, null, tableName);
+                String primaryName = "";
+                if(primaryKeys.next()){
+                    primaryName = primaryKeys.getString("COLUMN_NAME");
+                }
+                PreparedStatement ps_query = conn.prepareStatement(" SELECT " + primaryName + " FROM " + tableName);
+                ResultSet primaryps = ps_query.executeQuery();
+                int min_range = Integer.MAX_VALUE, max_range = Integer.MIN_VALUE;
+                while(primaryps.next()){
+                    int hash = primaryps.getString(1).hashCode() % MAX_HASH;
+                    if(hash < min_range)
+                        min_range = hash;
+                    if(hash > max_range)
+                        max_range = hash;
+                }
+                tableHashRange = min_range + "," + max_range;
+                client.create().withMode(CreateMode.PERSISTENT).forPath("/region" + regionID + "/tables/" + tableName, tableHashRange.getBytes());
             }
         }catch(Exception e){
             e.printStackTrace();
@@ -214,7 +232,7 @@ public class Zookeeper {
 
     public void addTable(String name){
         try{
-            client.create().withMode(CreateMode.EPHEMERAL).forPath("/region" + regionID + "/tables/" + name, name.getBytes());
+            client.create().withMode(CreateMode.PERSISTENT).forPath("/region" + regionID + "/tables/" + name, name.getBytes());
         }catch(Exception e){
             e.printStackTrace();
             System.out.println("Error: Master can't add table information to zkserver");
@@ -329,6 +347,7 @@ public class Zookeeper {
                     deleteAll("/region" + regionID, client);
                 }
             }catch (Exception e){
+                e.printStackTrace();
                 System.out.println("Error: Region Server can't delete zkserver info");
             }
             //2. 关闭client
