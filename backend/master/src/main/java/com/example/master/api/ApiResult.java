@@ -2,6 +2,9 @@ package com.example.master.api;
 
 import lombok.Data;
 
+/**
+ * 封装成一个类用于在Controller装要返回的数据。
+ */
 @Data
 public class ApiResult {
     private int status;

@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.Vector;
 
-import static com.example.master.zookeeper.ZkConfigs.MAX_HASH;
+import static com.example.master.utils.Configs.MAX_HASH;
 
 /**
  * Metadata class is a singleton class that holds the metadata of the system
@@ -33,6 +33,11 @@ public class Metadata {
 
         private static final Logger logger = LoggerFactory.getLogger(RegionMetadata.class);
 
+        /**
+         *
+         * @param value 被哈希的值
+         * @return 返回哈希值
+         */
         public static Integer hash(String value) {
             return value.hashCode() % MAX_HASH;
         }
@@ -50,6 +55,7 @@ public class Metadata {
             this.master = "";
         }
 
+        @Deprecated
         synchronized public void incrementVisitCount() {
             this.visitCount++;
         }
@@ -82,20 +88,12 @@ public class Metadata {
             for (Table table : tables) {
                 if (table.tableName.equals(tableName)) {
                     Integer hashValue = hash(pkValue);
-                    if (hashValue < table.end && hashValue >= table.start) {
+                    if (hashValue >= table.start && hashValue < table.end) {
                         return true;
                     }
                 }
             }
             return false;
-        }
-
-        /**
-         * @return 只要master不为空，region就是可写的
-         */
-        synchronized public Boolean isWritable() {
-            return !master.isEmpty();
-//            return !slaves.isEmpty() || !master.isEmpty();
         }
 
         synchronized public void addSlave(String slave) {
@@ -156,6 +154,14 @@ public class Metadata {
             logger.info("Server being chosen is '{}'", hostName);
             return hostName;
         }
+
+        /**
+         * Region是否上线
+         * @return 透过查看是否有master判断region是否online，online的region必须可读可写
+         */
+        synchronized public Boolean isOnline() {
+            return !master.isEmpty();
+        }
     }
 
     private static Metadata metadata;
@@ -168,12 +174,10 @@ public class Metadata {
     }
 
     private List<RegionMetadata> regions;
-//    private Set<String> masterSlaves;
     private Boolean isMaster;
 
     private Metadata() {
         this.regions = new Vector<>();
-//        this.masterSlaves = new HashSet<>();
         this.isMaster = false;
     }
 
@@ -197,10 +201,10 @@ public class Metadata {
      */
     public Boolean hasWritable() {
         for (var i : regions) {
-            if (i.isWritable()) {
+            if (i.isOnline()) {
                 return true;
             } else {
-                logger.info("Region with master {} is not writable", i.master);
+                logger.info("Region with master {} is not writable (not online)", i.master);
             }
         }
         logger.warn("No writable table exists");
@@ -242,7 +246,7 @@ public class Metadata {
                 for (var region : regions) {
                     if (region.hasTable(tableName)) {
                         hostName.add(region.pickHandleSlave()); // 轮询region内的服务器来处理查询
-                        region.incrementVisitCount();
+
                     }
                 }
                 break;
@@ -251,7 +255,7 @@ public class Metadata {
                 int minNTables = Integer.MAX_VALUE;
                 RegionMetadata minRegion = null;
                 for (var region : regions) {
-                    if (region.isWritable()) {
+                    if (region.isOnline()) {
                         int nTables = region.getTables().size();
                         if (nTables < minNTables) {
                             minNTables = nTables;

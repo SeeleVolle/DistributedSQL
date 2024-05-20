@@ -5,20 +5,36 @@ import com.example.master.zookeeper.Metadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 
 import static com.example.master.api.StatusCode.*;
 
+/**
+ * 这是一个接受来自Client请求的Controller
+ */
 @RestController
 public class ClientController {
     private static final Logger logger = LoggerFactory.getLogger(ClientController.class);
     private final Metadata metadata = Metadata.getInstance();
 
+    /**
+     * 测试用的接口
+     *
+     * @param tables Dummy data
+     * @return 返回
+     */
     @GetMapping("/")
     public ApiResult hello(@RequestBody List<Metadata.RegionMetadata.Table> tables) {
         return new ApiResult().ok().message("Hello, this is master server").data(tables);
     }
 
+    /**
+     * 这个接口会透过数据库的元数据选择一个合适的Region来进行建表操作，会返回Region对应的Master
+     *
+     * @param tableName 所建的表名
+     * @return 返回负责建表的master
+     */
     @PostMapping("/create_table")
     public ApiResult createTable(@RequestParam(name = "tableName") String tableName) {
         logger.info("Request create table '{}'", tableName);
@@ -34,6 +50,11 @@ public class ClientController {
         }
     }
 
+    /**
+     *
+     * @param tableName 要查询的表名
+     * @return 返回负责处理查询的slave(s)
+     */
     @PostMapping("/query_table")
     public ApiResult queryTable(@RequestParam(name = "tableName") String tableName) {
         logger.info("Request query table '{}'", tableName);
@@ -46,6 +67,12 @@ public class ClientController {
         }
     }
 
+    /**
+     *
+     * @param tableName 要插入到的表
+     * @param pkValue 主键值
+     * @return 返回负责处理插入表的master
+     */
     @PostMapping("/insert")
     public ApiResult insert(String tableName, String pkValue) {
         logger.info("Request insert record into table '{}'", tableName);
@@ -58,6 +85,11 @@ public class ClientController {
         }
     }
 
+    /**
+     *
+     * @param tableName 要修改的表名
+     * @return 返回负责处理修改表的master(s)
+     */
     @PostMapping("/update")
     public ApiResult update(@RequestParam(name = "tableName") String tableName) {
         logger.info("Request update table '{}'", tableName);
@@ -70,6 +102,11 @@ public class ClientController {
         }
     }
 
+    /**
+     *
+     * @param tableName 要删除的记录所对应的表
+     * @return 返回负责删除记录的master(s)
+     */
     @PostMapping("/delete")
     public ApiResult delete(@RequestParam(name = "tableName") String tableName) {
         logger.info("Request delete record from table '{}'", tableName);
@@ -82,6 +119,11 @@ public class ClientController {
         }
     }
 
+    /**
+     *
+     * @param tableName 要删除的表名
+     * @return 返回负责处理删表的master(s)
+     */
     @PostMapping("/drop_table")
     public ApiResult dropTable(String tableName) {
         logger.info("Request drop table '{}'", tableName);
@@ -94,6 +136,10 @@ public class ClientController {
         }
     }
 
+    /**
+     *
+     * @return 返回整个数据库当前状态的元数据
+     */
     @PostMapping("/meta_info")
     public ApiResult metaInfo() {
         logger.info("Getting all regions' metadata information");

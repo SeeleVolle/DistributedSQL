@@ -1,5 +1,6 @@
 package com.example.master.zookeeper;
 
+import com.example.master.utils.Configs;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -10,7 +11,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.Vector;
 
 /**
  * ZkClient is a singleton class that manages the connection to Zookeeper and initializes metadata
@@ -19,7 +19,7 @@ public class ZkClient {
     private static final Logger logger = LoggerFactory.getLogger(ZkClient.class);
 
     private ZkClient() {
-        zkServers = ZkConfigs.zkServers;
+        zkServers = Configs.ZK_SERVERS;
         metadata = Metadata.getInstance();
     }
 
@@ -53,7 +53,7 @@ public class ZkClient {
      * Initialize metadata for each region and listen to changes in Zookeeper
      */
     private void initMetadata() {
-        for (int i = 0; i < ZkConfigs.MAX_REGION; i++) {
+        for (int i = 0; i < Configs.MAX_REGION; i++) {
             Metadata.RegionMetadata regionMetadata = new Metadata.RegionMetadata();
             zkListener = new ZkListener(zkClient, i, regionMetadata);
             zkListener.listenMaster(); // Listen to master ZNode
