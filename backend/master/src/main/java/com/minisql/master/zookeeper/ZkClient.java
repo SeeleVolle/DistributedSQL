@@ -1,6 +1,6 @@
-package com.example.master.zookeeper;
+package com.minisql.master.zookeeper;
 
-import com.example.master.utils.Configs;
+import com.minisql.master.utils.Configs;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;

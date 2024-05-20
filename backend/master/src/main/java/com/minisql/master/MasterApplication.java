@@ -1,11 +1,11 @@
-package com.example.master;
+package com.minisql.master;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
-import com.example.master.utils.Configs;
-import com.example.master.utils.PersistenceHandler;
-import com.example.master.zookeeper.Metadata;
-import com.example.master.zookeeper.ZkClient;
+import com.minisql.master.utils.Configs;
+import com.minisql.master.utils.PersistenceHandler;
+import com.minisql.master.zookeeper.Metadata;
+import com.minisql.master.zookeeper.ZkClient;
 import com.google.common.collect.Sets;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.client.RestTemplate;
@@ -27,7 +29,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.Vector;
 
-import static com.example.master.utils.Configs.HOTPOINT_THRESHOLD;
+import static com.minisql.master.utils.Configs.HOTPOINT_THRESHOLD;
 
 @SpringBootApplication
 @EnableScheduling
@@ -42,6 +44,15 @@ public class MasterApplication {
     private String configDir;
 
     private ZkClient zkClient;
+
+    @Bean
+    public RestTemplate restTemplate() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(1000); // 连接超时时间（单位：毫秒）
+        factory.setReadTimeout(1000);    // 读取超时时间（单位：毫秒）
+
+        return new RestTemplate(factory);
+    }
 
     @PostConstruct
     private void init() {
@@ -78,7 +89,7 @@ public class MasterApplication {
     }
 
     private Integer requestVisitCount(String hostName) {
-        RestTemplate rt = new RestTemplate();
+        RestTemplate rt = restTemplate();
 
         String requestUrl = Configs.REGION_SERVER_HTTPS + "://" + hostName.replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT) + "/visiting";
         logger.info("Request visit count URL is {}", requestUrl);
@@ -97,7 +108,7 @@ public class MasterApplication {
     }
 
     private void requestSetZeroVisitCount(String hostName) {
-        RestTemplate rt = new RestTemplate();
+        RestTemplate rt = restTemplate();
         String requestUrl = Configs.REGION_SERVER_HTTPS + "://" + hostName.replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT) + "/visitingClear";
         logger.info("Request clear visit count URL is {}", requestUrl);
         String result = "";
@@ -190,7 +201,7 @@ public class MasterApplication {
         }
 
         try {
-            RestTemplate rt = new RestTemplate();
+            RestTemplate rt = restTemplate();
             String requestUrl = Configs.REGION_SERVER_HTTPS + "://"
                     + maxRegion.replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT)
                     + "/hotsend?targetIP="

@@ -1,4 +1,4 @@
-package com.example.master.utils;
+package com.minisql.master.utils;
 
 import java.util.List;
 

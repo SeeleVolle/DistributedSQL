@@ -1,4 +1,4 @@
-package com.example.master.zookeeper;
+package com.minisql.master.zookeeper;
 
 import lombok.*;
 import org.slf4j.Logger;
@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.Vector;
 
-import static com.example.master.utils.Configs.MAX_HASH;
+import static com.minisql.master.utils.Configs.MAX_HASH;
 
 /**
  * Metadata class is a singleton class that holds the metadata of the system

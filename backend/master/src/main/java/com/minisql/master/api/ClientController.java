@@ -1,14 +1,14 @@
-package com.example.master.api;
+package com.minisql.master.api;
 
 import com.alibaba.fastjson2.JSONObject;
-import com.example.master.zookeeper.Metadata;
+import com.minisql.master.zookeeper.Metadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-import static com.example.master.api.StatusCode.*;
+import static com.minisql.master.api.StatusCode.*;
 
 /**
  * 这是一个接受来自Client请求的Controller

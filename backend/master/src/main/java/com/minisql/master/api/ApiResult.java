@@ -1,4 +1,4 @@
-package com.example.master.api;
+package com.minisql.master.api;
 
 import lombok.Data;
 
