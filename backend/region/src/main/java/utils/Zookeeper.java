@@ -7,6 +7,7 @@ import org.apache.curator.framework.recipes.cache.CuratorCache;
 import org.apache.curator.framework.recipes.cache.CuratorCacheListener;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.KeeperException;
 
 import java.sql.*;
 import java.util.*;
@@ -144,11 +145,13 @@ public class Zookeeper {
             masterListener.stoplistening();
             //3. 更新tables目录
             //WriteTableMeta();
+            System.out.println("Region "+ regionID + " Server "+ serverID +" is new master");
+        } catch(KeeperException.NodeExistsException e){
+            System.out.println("Region server " + localaddr + " failed to become new master");
         } catch(Exception e){
             e.printStackTrace();
-            System.out.println("Region server " + localaddr + " failed to update zkserver");
+            System.out.println("Error: Region server " + localaddr + " failed to update zkserver info");
         }
-        System.out.println("Region "+ regionID + " Server "+ serverID +" is new master");
     }
 
     public void slaveInit(Integer regionID, Integer serverID, String localaddr, Integer number) throws Exception {
@@ -212,15 +215,21 @@ public class Zookeeper {
                     primaryName = primaryKeys.getString("COLUMN_NAME");
                 }
                 PreparedStatement ps_query = conn.prepareStatement(" SELECT " + primaryName + " FROM " + tableName);
+//                System.out.println(" SELECT " + primaryName + " FROM " + tableName);
                 ResultSet primaryps = ps_query.executeQuery();
                 int min_range = Integer.MAX_VALUE, max_range = Integer.MIN_VALUE;
-                while(primaryps.next()){
-                    int hash = primaryps.getString(1).hashCode() % MAX_HASH;
-                    if(hash < min_range)
-                        min_range = hash;
-                    if(hash > max_range)
-                        max_range = hash;
-                }
+//                while(primaryps.next()){
+//                    int hash = primaryps.getString(1).hashCode() % MAX_HASH;
+//                    System.out.println("hash: " + hash);
+//                    if(hash < min_range)
+//                        min_range = hash;
+//                    if(hash > max_range)
+//                        max_range = hash;
+//                }
+                if(min_range == Integer.MAX_VALUE)
+                    min_range = 0;
+                if(max_range == Integer.MIN_VALUE)
+                    max_range = MAX_HASH;
                 tableHashRange = min_range + "," + max_range;
                 client.create().withMode(CreateMode.PERSISTENT).forPath("/region" + regionID + "/tables/" + tableName, tableHashRange.getBytes());
             }
@@ -232,7 +241,16 @@ public class Zookeeper {
 
     public void addTable(String name){
         try{
-            client.create().withMode(CreateMode.PERSISTENT).forPath("/region" + regionID + "/tables/" + name, name.getBytes());
+            client.create().withMode(CreateMode.PERSISTENT).forPath("/region" + regionID + "/tables/" + name, "0,65536".getBytes());
+        }catch(Exception e){
+            e.printStackTrace();
+            System.out.println("Error: Master can't add table information to zkserver");
+        }
+    }
+
+    public void updateTable(String name, String target_regionID, String new_hash_range){
+        try{
+            client.setData().forPath("/region" + target_regionID + "/tables/" + name, new_hash_range.getBytes());
         }catch(Exception e){
             e.printStackTrace();
             System.out.println("Error: Master can't add table information to zkserver");
@@ -342,12 +360,11 @@ public class Zookeeper {
                     else
                         client.delete().forPath("/region" + regionID + "/slaves/slave" + serverID);
                 }
-                List<String> children_slave = client.getChildren().forPath("/region" + regionID + "/tables");
+                List<String> children_slave = client.getChildren().forPath("/region" + regionID + "/slaves");
                 if(children_slave.size() == 0 && client.checkExists().forPath("/region" + regionID + "/master") == null){
                     deleteAll("/region" + regionID, client);
                 }
             }catch (Exception e){
-                e.printStackTrace();
                 System.out.println("Error: Region Server can't delete zkserver info");
             }
             //2. 关闭client
@@ -397,6 +414,7 @@ public class Zookeeper {
                 }
             }
         }
+
 
         class MyListener implements CuratorCacheListener{
             @Override

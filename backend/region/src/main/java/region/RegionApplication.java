@@ -57,7 +57,7 @@ public class RegionApplication {
         try{
             //获取本机地址：ip:port
             String ip = InetAddress.getLocalHost().getHostAddress();
-            System.out.println("Server IP address：" + ip);
+            System.out.println("Server IP address:" + ip);
             String localaddr = ip+":"+port;
 //            获取数据库连接z
             String url = "jdbc:mysql://"+ ip + ":3306/DISTRIBUTED";
@@ -204,6 +204,7 @@ public class RegionApplication {
 
             CheckSum checkSum = new CheckSum(databaseConnection);
             long myCRCResult = checkSum.getCRC4Result(datalist);
+            System.out.println("CRCResult: " + myCRCResult);
         //2. 转发sql语句到其他slave进行vote表决
             if(vote(params.getSql(), params.getTableName(), myCRCResult)){
                 res.put("status", "200");
@@ -352,6 +353,9 @@ public class RegionApplication {
 
     public boolean vote(String sql, String tableName, long myCRCResult) throws SQLException {
         List<String> slavesAddrs = zookeeper.getSlaves();
+        for(String slaveAddr: slavesAddrs) {
+            System.out.println("Slave: " + slaveAddr);
+        }
         int supports_num = 1;
         //转发请求并获取结果
         for(String slaveAddr: slavesAddrs) {
@@ -367,13 +371,16 @@ public class RegionApplication {
             HttpEntity<JSONObject> requestEntity = new HttpEntity<>(params, headers);
             //发送请求并获取响应
             String CRCResult = restTemplate.postForEntity(slaveurl, requestEntity, JSONObject.class).getBody().get("CRCResult").toString();
-            if(CRCResult.equals(myCRCResult)) {
+            if(CRCResult.equals(String.valueOf(myCRCResult))) {
                 supports_num++;
             }
+            else
+                System.out.println("ERROR CRCResult: " + CRCResult);
         }
         if(supports_num >= slavesAddrs.size() / 2  + 1 ) {
             return true;
         }
+
         System.out.println("Error: Vote can't exceed half of the slaves.");
         return false;
     }
@@ -395,7 +402,7 @@ public class RegionApplication {
     }
 
     @RequestMapping("/hotsend")
-    public JSONObject hotSend(@RequestBody List<TransfrerMeta> tables,  @RequestParam String targetIP)  {
+    public JSONObject hotSend(@RequestBody List<TransfrerMeta> tables,  @RequestParam String targetIP, @RequestParam String targetRegionID)  {
         System.out.println("Hot is sending to " + targetIP  + " ...");
         JSONObject res = new JSONObject();
         DatabaseConnection target_databaseConnection = new DatabaseConnection("jdbc:mysql://"+ targetIP + ":3306/DISTRIBUTED", username, password);
@@ -461,9 +468,21 @@ public class RegionApplication {
                         forward(deleteSQL, "update", tableName, myCRCResult);
                     }
                 }
+                String target_hash_range = start+","+end;
+                String original_hash_range = table.getOriginalStart() + "," + table.getOriginalEnd();
+                System.out.println("target:" + target_hash_range);
+                System.out.println("original" +  original_hash_range);
+                System.out.println("targetID:" + targetRegionID);
+                System.out.println("sourceID:" + zookeeper.getRegionID());
+                zookeeper.updateTable(tableName, String.valueOf(zookeeper.getRegionID()), original_hash_range);
+                zookeeper.updateTable(tableName, targetRegionID, target_hash_range);
             }
+
+
             res.put("status", "200");
             res.put("msg", "Transfer Successfully");
+
+
 
         }catch(Exception e){
             e.printStackTrace();
@@ -499,20 +518,26 @@ public class RegionApplication {
 }
 
 class TransfrerMeta{
-    private String tableName;
-    private Integer start;
-    private Integer end;
+    private String  tableName;
+    private Integer targetStart;
+    private Integer targetEnd;
+    private Integer originalStart;
+    private Integer originalEnd;
 
-    TransfrerMeta(String tableName, int start, int end){
+    TransfrerMeta(String tableName, int targetStart, int targetEnd, int originalStart, int originalEnd){
         this.tableName = tableName.toUpperCase();
-        this.start = start;
-        this.end = end;
-
+        this.targetStart = targetStart;
+        this.targetEnd = targetEnd;
+        this.originalStart = originalStart;
+        this.originalEnd = originalEnd;
     }
 
     public String getTableName(){return tableName;}
-    public int getStart(){return start;}
-    public int getEnd(){return end;}
+    public int getStart(){return targetStart;}
+    public int getEnd(){return targetEnd;}
+    public int getOriginalStart(){return originalStart;}
+    public int getOriginalEnd(){return originalEnd;}
+
 }
 
 
