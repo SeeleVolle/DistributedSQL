@@ -4,13 +4,13 @@ import axios from 'axios';
 import {CheckCircleOutlined, CloseCircleOutlined, ThunderboltOutlined} from '@ant-design/icons';
 
 const { TextArea } = Input;
-const MasterNode = {
-    NODE_1: 'http://10.194.223.161:8081',
-    NODE_2: 'http://10.194.223.161:8082',
-    NODE_3: 'http://10.194.223.161:8083',
-    NODE_4: 'http://10.194.223.161:8084'
-};
-// const server = "http://127.0.0.1:8080";
+const MasterNode = [
+    'http://127.0.0.1:8080'
+    // 'http://10.194.223.161:8081',
+    // 'http://10.194.223.161:8082',
+    // 'http://10.194.223.161:8083',
+    // 'http://10.194.223.161:8084'
+];
 
 const MainContent = () => {
     const [text, setText] = useState('');
@@ -27,31 +27,57 @@ const MainContent = () => {
     };
 
     const parseSQLStatements = (sqlText) => {
-        const sqlStatements = sqlText.split('\n');
+        // 分割语句，使用分号作为分隔符，并去除每个语句末尾的空白字符
+        const sqlStatements = sqlText.split(';').map(statement => statement.trim());
+
         const trimmedStatements = [];
 
         sqlStatements.forEach((statement) => {
-
-            // 如果语句中包含小括号，则在其前面添加一个空格
-            if (statement.includes('(')) {
-                statement = statement.replace('(', ' (');
+            if (!statement) {
+                return;
             }
 
-            // 将原始语句中的小括号内部数据提取出来
-            const parts = statement.split(/\(([^)]+)\)/);
+            // 将单个语句中的换行符替换为空白符
+            const normalizedStatement = statement.replace(/\n/g, ' ');
 
-            // 转换除小括号内部以外的部分为大写
-            const trimmedStatement = parts.map((part, index) => {
-                // 如果是小括号内部的部分，则保持原样
-                if (index % 2 === 1) {
-                    return `(${part.trim()})`;
+            let inSingleQuotes = false;
+            let inParentheses = false;
+            let currentPart = '';
+
+            for (let i = 0; i < normalizedStatement.length; i++) {
+                const char = normalizedStatement[i];
+
+                if (inSingleQuotes) {
+                    if (char === "'" && normalizedStatement[i - 1] !== '\\') {
+                        inSingleQuotes = false;
+                    }
+                    currentPart += char;
+                } else if (inParentheses) {
+                    if (char === ')') {
+                        inParentheses = false;
+                    }
+                    currentPart += char;
                 } else {
-                    return part.trim().toUpperCase();
+                    if (char === '\'') {
+                        inSingleQuotes = true;
+                        currentPart += char;
+                    } else if (char === '(') {
+                        inParentheses = true;
+                        currentPart += ' (';
+                    } else if (char === ')') {
+                        currentPart += ' )';
+                    } else {
+                        // 将非小括号和单引号内的内容转换为大写
+                        currentPart += char.toUpperCase();
+                    }
                 }
-            }).join(' ');
+            }
 
-            const lastIndex = trimmedStatement.length - 1;
-            trimmedStatements.push(trimmedStatement.substring(0, lastIndex) + ' ' + trimmedStatement[lastIndex]);
+            if (!currentPart.endsWith(';')) {
+                currentPart += ' ;';
+            }
+
+            trimmedStatements.push(currentPart);
         });
 
         return trimmedStatements;
@@ -71,7 +97,7 @@ const MainContent = () => {
             } else if (trimmedStatement.startsWith('SELECT')) {
                 type = 'QUERY';
                 const fromIndex = trimmedStatement.indexOf('FROM') + 4;
-                tableName = trimmedStatement.substring(fromIndex).trim();
+                tableName = trimmedStatement.slice(fromIndex).match(/\w+\b/)[0];
             } else if (trimmedStatement.startsWith('DROP TABLE')) {
                 type = 'DROP';
                 tableName = trimmedStatement.split(' ')[2];
@@ -87,17 +113,22 @@ const MainContent = () => {
             } else if (trimmedStatement.startsWith('UPDATE')) {
                 type = 'UPDATE';
                 tableName = trimmedStatement.split(' ')[1];
+            } else if (trimmedStatement.startsWith('DELETE')) {
+                type = 'DELETE';
+                const fromIndex = trimmedStatement.indexOf('FROM') + 4;
+                tableName = trimmedStatement.slice(fromIndex).match(/\w+\b/)[0];
             }
 
-            for (let i = 0; i < MasterNode.length; i++) {
-                const server = MasterNode[i];
+            let count = 0;
+            for (count = 0; count < MasterNode.length; count++) {
+                const server = MasterNode[count];
                 let url = '';
                 if (type === 'CREATE') {
                     url = server + `/create_table?tableName=${tableName}`;
                 } else if (type === 'QUERY') {
                     url = server + `/query_table?tableName=${tableName}`;
                 } else if (type === 'INSERT') {
-                    url = server + `/insert?tableName=${tableName}&${pkValue}`;
+                    url = server + `/insert?tableName=${tableName}&pkValue=${pkValue}`;
                 } else if (type === 'UPDATE') {
                     url = server + `/update?tableName=${tableName}`;
                 } else if (type === 'DROP') {
@@ -105,8 +136,8 @@ const MainContent = () => {
                 } else if (type === 'DELETE') {
                     url = server + `/delete?tableName=${tableName}`
                 }
-                // console.log(tableName);
-                // console.log(url);
+                console.log(tableName);
+                console.log(url);
 
                 try {
                     // 设置响应超时时间为1秒
@@ -117,14 +148,23 @@ const MainContent = () => {
 
                     const requestPromise = axios.post(url, {text})
                         .then(response => {
+                            isResponseReceived = true;
                             const hostNames = response.data.data.hostNames;
+                            if (response.data && response.data.data && response.data.data.hostNames) {
+                                for (let i = 0; i < hostNames.length; i++) {
+                                    if (typeof hostNames[i] === 'string') {
+                                        hostNames[i] = hostNames[i].slice(0, -5);
+                                    }
+                                }
+                            }
                             const masterStatus = response.data.status;
                             const masterMessage = response.data.message;
                             // const hostNames = ["127.0.0.1"];
-                            // console.log(hostNames);
-                            // console.log(masterMessage);
+                            console.log(hostNames);
+                            console.log(masterMessage);
+                            console.log(masterStatus);
 
-                            if (masterStatus !== '200'){
+                            if (masterStatus !== 200){
                                 const icon = <CloseCircleOutlined style={{color: 'red'}}/>;
                                 const newMsg = (
                                     <span>
@@ -136,7 +176,13 @@ const MainContent = () => {
                                 });
                             } else {
                                 const requests = hostNames.map(hostName => {
-                                    const newUrl = `http://${hostName}:9090/${type.toLowerCase()}`;
+                                    let newUrl = '';
+                                    if (type === 'CREATE' || type === 'QUERY' || type === 'DROP') {
+                                        newUrl = `http://${hostName}:9090/${type.toLowerCase()}`;
+                                    } else if (type === 'INSERT' || type === 'UPDATE' || type === 'DELETE') {
+                                        newUrl = `http://${hostName}:9090/update`;
+                                    }
+                                    console.log(newUrl);
                                     return axios.post(newUrl, {
                                         sql: trimmedStatement,
                                         tableName: tableName
@@ -159,8 +205,8 @@ const MainContent = () => {
                                             <CloseCircleOutlined style={{color: 'red'}}/>;
                                         const newMsg = (
                                             <span>
-                                    {icon} {trimmedStatement} {allMsg}
-                                </span>
+                                                {icon} {trimmedStatement} {allMsg}
+                                            </span>
                                         );
                                         setMsgList(prevMsgList => {
                                             return [...prevMsgList, newMsg].slice(-8);
@@ -231,11 +277,14 @@ const MainContent = () => {
                     // 等待请求完成或超时
                     await Promise.race([requestPromise, timeoutPromise]);
 
-                    break;
+                    if (isResponseReceived) {
+                        break;
+                    }
                 } catch (error) {
                     console.error('Error from node ' + server + ':', error);
                 }
-                throw new Error('All nodes failed to respond');
+                if (count === MasterNode.length)
+                    throw new Error('All nodes failed to respond');
             }
         }
     };

@@ -60,7 +60,7 @@ public class RegionApplication {
             System.out.println("Server IP address：" + ip);
             String localaddr = ip+":"+port;
 //            获取数据库连接z
-            String url = "jdbc:mysql://"+ ip + ":3306/DISTRIBUTED";
+            String url = "jdbc:mysql://127.0.0.1:3306/DISTRIBUTED";
             databaseConnection = new DatabaseConnection(url, username, password);
             databaseConnection.connect();
             //初始化zookeeper
@@ -217,7 +217,7 @@ public class RegionApplication {
                     else
                         first_row.append(meta.getColumnName(i)).append(" ");
                 }
-                res.put("Column Name:", first_row.toString());
+                res.put("Column Name", first_row.toString());
                 for(int i = 0; i < datalist.size(); i++){
                     StringBuilder row = new StringBuilder();
                     for(int j = 0; j < datalist.get(0).length; j++){
@@ -226,7 +226,7 @@ public class RegionApplication {
                         else
                             row.append(datalist.get(i)[j]).append(" ");
                     }
-                    res.put("Row "+ String.valueOf(i+1) +" :", row.toString());
+                    res.put("Row "+ String.valueOf(i+1), row.toString());
                 }
             }
             else
@@ -236,7 +236,7 @@ public class RegionApplication {
             e.printStackTrace();
             System.out.println("Error: Region Server query table failed.");
             res.put("status", "500");
-            res.put("message", "Query table failed.");
+            res.put("msg", "Query table failed.");
         }
         return res;
     }

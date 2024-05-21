@@ -207,7 +207,7 @@ public class Zookeeper {
                 //获取主键哈希范围并写入到Zookeeper中
                 String tableHashRange = "";
                 ResultSet primaryKeys = dbmd.getPrimaryKeys(null, null, tableName);
-                String primaryName = "";
+                String primaryName = "*";
                 if(primaryKeys.next()){
                     primaryName = primaryKeys.getString("COLUMN_NAME");
                 }

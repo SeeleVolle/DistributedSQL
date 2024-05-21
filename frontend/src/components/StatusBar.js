@@ -4,12 +4,13 @@ import { Table, Button } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 
 // const server = "http://127.0.0.1:8080";
-const MasterNode = {
-    NODE_1: 'http://10.194.223.161:8081',
-    NODE_2: 'http://10.194.223.161:8082',
-    NODE_3: 'http://10.194.223.161:8083',
-    NODE_4: 'http://10.194.223.161:8084'
-};
+const MasterNode = [
+    'http://127.0.0.1:8080'
+    // 'http://10.194.223.161:8081',
+    // 'http://10.194.223.161:8082',
+    // 'http://10.194.223.161:8083',
+    // 'http://10.194.223.161:8084'
+];
 
 const StatusBar = () => {
     const data = {};
@@ -26,15 +27,19 @@ const StatusBar = () => {
                 const response = await Promise.race([
                     axios.post(node + "/meta_info", data),
                     new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('Request timeout')), 5000) // 设置超时时间为5秒
+                        setTimeout(() => reject(new Error('Request timeout')), 5000)
                     )
                 ]);
 
-                if (response.data && response.data.data && response.data.data.meta && response.data.data.meta.data) {
-                    const responseData = response.data.data.meta.data;
-                    const allTables = responseData.reduce((acc, curr) => {
-                        return [...acc, ...curr.tables];
-                    }, []);
+                if (response.data && response.data.data && response.data.data.meta && response.data.data.meta.regions) {
+                    const responseData = response.data.data.meta.regions;
+                    const tableNamesSet = new Set();
+                    responseData.forEach(region => {
+                        region.tables.forEach(table => {
+                            tableNamesSet.add(table.tableName);
+                        });
+                    });
+                    const allTables = Array.from(tableNamesSet);
                     setTables(allTables);
                     return;
                 }
