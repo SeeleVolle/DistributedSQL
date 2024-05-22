@@ -1,5 +1,8 @@
 package utils;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.sql.*;
 
 /**
@@ -12,6 +15,8 @@ import java.sql.*;
  * @version: 1.0
  */
 public class TableCopy {
+    private static final Logger logger = LoggerFactory.getLogger(TableCopy.class);
+    
     private DatabaseConnection sourceDataSource;
     private DatabaseConnection targetDataSource;
 
@@ -47,11 +52,11 @@ public class TableCopy {
             }
         }catch (Exception e){
             if(e.getMessage().contains("already exists")) {
-                System.out.println("Table " + targetTable + " already exists");
+                logger.info("Table " + targetTable + " already exists");
             }
             else{
                 e.printStackTrace();
-                System.out.println("Failed to copy data from " + sourceTable + " to " + targetTable);
+                logger.info("Failed to copy data from " + sourceTable + " to " + targetTable);
             }
 
         }

@@ -1,6 +1,8 @@
 package utils;
 
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
 import java.sql.*;
@@ -18,6 +20,8 @@ import java.util.zip.CRC32;
  */
 
 public class CheckSum extends CRC32 {
+    private static final Logger logger = LoggerFactory.getLogger(CheckSum.class);
+
     DatabaseConnection databaseConnection;
     Connection conn;
 
@@ -26,7 +30,7 @@ public class CheckSum extends CRC32 {
         try{
             this.conn = databaseConnection.getConnection();
         } catch(Exception e){
-            System.out.println("Failed to connect to database in CheckSum");
+            logger.error("Failed to connect to database in CheckSum");
         }
     }
 
@@ -41,7 +45,7 @@ public class CheckSum extends CRC32 {
                 return crc;
             }
         }catch(SQLException e){
-            System.out.println("Failed to get CRC4Table " + tableName + " in CheckSum");
+            logger.error("Failed to get CRC4Table " + tableName + " in CheckSum");
         }
         //不存在就返回0
         return 0;

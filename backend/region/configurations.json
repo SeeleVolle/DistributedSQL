@@ -1,0 +1,8 @@
+{
+  "zkServer": "172.25.2.229:2181",
+  "regionPort": 2181,
+  "maxRegions": 2,
+  "maxServers": 2,
+  "DBUsername": "huang",
+  "DBPassword": "123456"
+}

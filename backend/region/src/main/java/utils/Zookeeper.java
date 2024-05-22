@@ -8,6 +8,8 @@ import org.apache.curator.framework.recipes.cache.CuratorCacheListener;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.util.*;
@@ -25,6 +27,7 @@ import static java.lang.System.exit;
  */
 
 public class Zookeeper {
+    private static final Logger logger = LoggerFactory.getLogger(Zookeeper.class);
 
     private final String localaddr;
     private final String zkServerAddr;
@@ -58,10 +61,10 @@ public class Zookeeper {
     }
 
     public void connect(){
-        System.out.println("Region server " + localaddr + " is connecting to zkServer: "+ zkServerAddr + " ......");
+        logger.info("Region server " + localaddr + " is connecting to zkServer: "+ zkServerAddr + " ......");
         client = CuratorFrameworkFactory.builder()
                 .connectString(zkServerAddr)
-                .retryPolicy(new ExponentialBackoffRetry(2000, 5))
+                .retryPolicy(new ExponentialBackoffRetry(2000, 2))
                 .sessionTimeoutMs(10000)
                 .connectionTimeoutMs(10000)
                 .build();
@@ -69,13 +72,13 @@ public class Zookeeper {
         try{
             String testStr = new String(client.getData().forPath("/test"));
             if(!testStr.equals("hello")){
-                System.out.println("Error: Zookeeper connection failed");
+                logger.error("Error: Zookeeper connection failed");
                 exit(1);
             }
-            System.out.println("Connected successfully");
+            logger.info("Connected successfully");
         }catch(Exception e){
             e.printStackTrace();
-            System.out.println("Error: Zookeeper connection failed");
+            logger.error("Error: Zookeeper connection failed");
             exit(1);
         }
 
@@ -84,7 +87,7 @@ public class Zookeeper {
 
     //初始化本Region Server在Zookeeper中的
     public void initzk(){
-        System.out.println("initializing zk ......");
+        logger.info("initializing zk ......");
         //寻找空闲的Region，将本RegionServer添加到Zookeeper中
         for(int i = 0; i < maxRegions; i++){
             try{
@@ -109,11 +112,11 @@ public class Zookeeper {
                     }
                 }
                 if(i == maxRegions - 1){
-                    System.out.println("No available region for this server");
+                    logger.info("No available region for this server");
                 }
             }catch(Exception e){
                 e.printStackTrace();
-                System.out.println("Region server " + localaddr + " failed to add to zkserver");
+                logger.error("Region server " + localaddr + " failed to add to zkserver");
             }
         }
         isReady = true;
@@ -135,7 +138,7 @@ public class Zookeeper {
 
     public void masterUpdated(Integer regionID, Integer serverID, String localaddr)  {
         try{
-            System.out.println("Region "+ regionID + " Server "+ serverID +" Trying to be new master...");
+            logger.info("Region "+ regionID + " Server "+ serverID +" Trying to be new master...");
             //1. 更新zk中的master信息，number信息, 以及子目录信息
             this.isMaster = true;
             Integer number = Integer.parseInt(new String(client.getData().forPath("/region" + regionID + "/number")));
@@ -145,12 +148,12 @@ public class Zookeeper {
             masterListener.stoplistening();
             //3. 更新tables目录
             //WriteTableMeta();
-            System.out.println("Region "+ regionID + " Server "+ serverID +" is new master");
+            logger.info("Region "+ regionID + " Server "+ serverID +" is new master");
         } catch(KeeperException.NodeExistsException e){
-            System.out.println("Region server " + localaddr + " failed to become new master");
+            logger.info("Region server " + localaddr + " failed to become new master");
         } catch(Exception e){
             e.printStackTrace();
-            System.out.println("Error: Region server " + localaddr + " failed to update zkserver info");
+            logger.error("Error: Region server " + localaddr + " failed to update zkserver info");
         }
     }
 
@@ -163,7 +166,7 @@ public class Zookeeper {
         //2.从master处拷贝数据
         this.isMaster = false;
         String masterAddr = getMasterAddr();
-        System.out.println("Copy from master db: " + masterAddr+ "...");
+        logger.info("Copy from master db: " + masterAddr+ "...");
         CLearDB();
         CopyFromRemoteDB(masterAddr);
         //3. 注册master的监听器
@@ -175,7 +178,7 @@ public class Zookeeper {
         try{
             return new String(client.getData().forPath("/region" + regionID + "/master"));
         }catch(Exception e){
-            System.out.println("Error: Can't get master address");
+            logger.error("Error: Can't get master address");
         }
         return null;
     }
@@ -188,13 +191,13 @@ public class Zookeeper {
             ResultSet rs = ps.executeQuery();
             while(rs.next()){
                 String tableName = rs.getString(1);
-                System.out.println("Clear table: " + tableName);
+                logger.info("Clear table: " + tableName);
                 ps = conn.prepareStatement("drop table " + tableName);
                 ps.executeUpdate();
             }
         }catch(Exception e){
             e.printStackTrace();
-            System.out.println("Error: Region Server can't clear db");
+            logger.error("Error: Region Server can't clear db");
         }
     }
 
@@ -206,7 +209,7 @@ public class Zookeeper {
             ResultSet rs = ps.executeQuery();
             while(rs.next()){
                 String tableName = rs.getString(1);
-                System.out.println("Write table meta: " + tableName);
+                logger.info("Write table meta: " + tableName);
                 //获取主键哈希范围并写入到Zookeeper中
                 String tableHashRange = "";
                 ResultSet primaryKeys = dbmd.getPrimaryKeys(null, null, tableName);
@@ -215,12 +218,12 @@ public class Zookeeper {
                     primaryName = primaryKeys.getString("COLUMN_NAME");
                 }
                 PreparedStatement ps_query = conn.prepareStatement(" SELECT " + primaryName + " FROM " + tableName);
-//                System.out.println(" SELECT " + primaryName + " FROM " + tableName);
+//                logger.info(" SELECT " + primaryName + " FROM " + tableName);
                 ResultSet primaryps = ps_query.executeQuery();
                 int min_range = Integer.MAX_VALUE, max_range = Integer.MIN_VALUE;
 //                while(primaryps.next()){
 //                    int hash = primaryps.getString(1).hashCode() % MAX_HASH;
-//                    System.out.println("hash: " + hash);
+//                    logger.info("hash: " + hash);
 //                    if(hash < min_range)
 //                        min_range = hash;
 //                    if(hash > max_range)
@@ -235,7 +238,7 @@ public class Zookeeper {
             }
         }catch(Exception e){
             e.printStackTrace();
-            System.out.println("Error: Master can't write table meta to zkserver");
+            logger.error("Error: Master can't write table meta to zkserver");
         }
     }
 
@@ -244,7 +247,7 @@ public class Zookeeper {
             client.create().withMode(CreateMode.PERSISTENT).forPath("/region" + regionID + "/tables/" + name, "0,65536".getBytes());
         }catch(Exception e){
             e.printStackTrace();
-            System.out.println("Error: Master can't add table information to zkserver");
+            logger.error("Error: Master can't add table information to zkserver");
         }
     }
 
@@ -253,7 +256,7 @@ public class Zookeeper {
             client.setData().forPath("/region" + target_regionID + "/tables/" + name, new_hash_range.getBytes());
         }catch(Exception e){
             e.printStackTrace();
-            System.out.println("Error: Master can't add table information to zkserver");
+            logger.error("Error: Master can't add table information to zkserver");
         }
     }
 
@@ -263,7 +266,7 @@ public class Zookeeper {
                 return true;
             }
         }catch(Exception e){
-            System.out.println("Error: Master can't check table information in zkserver");
+            logger.error("Error: Master can't check table information in zkserver");
         }
         return false;
     }
@@ -272,7 +275,7 @@ public class Zookeeper {
         try{
             client.delete().forPath("/region" + regionID + "/tables/" + name);
         }catch(Exception e){
-            System.out.println("Error: Master can't delete table information to zkserver");
+            logger.error("Error: Master can't delete table information to zkserver");
         }
     }
 
@@ -322,7 +325,7 @@ public class Zookeeper {
         try{
             return Integer.parseInt(new String(client.getData().forPath("/region" + regionID + "/number")));
         }catch(Exception e){
-            System.out.println("Error: Can't get server numbers");
+            logger.error("Error: Can't get server numbers");
         }
         return 0;
     }
@@ -338,14 +341,14 @@ public class Zookeeper {
             }
             return list;
         }catch(Exception e){
-            System.out.println("Error: Can't get slave information");
+            logger.error("Error: Can't get slave information");
         }
         return null;
     }
 
 
     public void close(){
-        System.out.println("Region server " + localaddr + " is disconneting to zkServer: "+ zkServerAddr + " ......");
+        logger.info("Region server " + localaddr + " is disconneting to zkServer: "+ zkServerAddr + " ......");
         if(client != null){
             //1. 更新zk信息
             try{
@@ -361,17 +364,17 @@ public class Zookeeper {
                         client.delete().forPath("/region" + regionID + "/slaves/slave" + serverID);
                 }
                 List<String> children_slave = client.getChildren().forPath("/region" + regionID + "/slaves");
-                if(children_slave.size() == 0 && client.checkExists().forPath("/region" + regionID + "/master") == null){
+                if(children_slave.size() == 0 && client.checkExists().forPath("/region" + regionID + "/master") == null && client.checkExists().forPath("/region" + regionID) != null){
                     deleteAll("/region" + regionID, client);
                 }
             }catch (Exception e){
-                System.out.println("Error: Region Server can't delete zkserver info");
+                logger.error("Error: Region Server can't delete zkserver info");
             }
             //2. 关闭client
             client.close();
             client = null;
         }
-        System.out.println("Disconnected successfully");
+        logger.info("Disconnected successfully");
     }
 
     public void deleteAll(String path, CuratorFramework client) throws Exception {
@@ -410,7 +413,7 @@ public class Zookeeper {
                 try{
                     cache.close();
                 }catch(Exception e){
-                    System.out.println("Error: MasterListener can't stop listening");
+                    logger.info("Error: MasterListener can't stop listening");
                 }
             }
         }
@@ -430,7 +433,7 @@ public class Zookeeper {
                             break;
                     }
                 }catch(Exception e){
-                    System.out.println("Error: MasterListener can't handle event");
+                    logger.info("Error: MasterListener can't handle event");
                 }
             }
         }

@@ -1,12 +1,15 @@
 package region;
 
 import com.alibaba.fastjson.JSONObject;
+import com.alibaba.fastjson.JSON;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
@@ -14,37 +17,39 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import utils.*;
 
+import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 @SpringBootApplication
 @RestController
 @CrossOrigin
 public class RegionApplication {
 
-    @Value("${zookeeper.server}")
+    public static final Logger logger = LoggerFactory.getLogger(RegionApplication.class);
+
+    @Value("${region.config}")
+    private String configDir;
+
     private String zkServerAddr;
-    @Value("${region.port}")
     private int port;
-    @Value("${region.maxRegions}")
     private int maxRegions;
-    @Value("${region.maxServers}")
     private int maxServers;
     DatabaseConnection databaseConnection;
 
-    @Value("${DatabaseConnection.username}")
     private String username;
-    @Value("${DatabaseConnection.password}")
     private String password;
     private int visitCount;
-
 
     private static Zookeeper zookeeper;
 
@@ -55,11 +60,13 @@ public class RegionApplication {
     @PostConstruct
     void init(){
         try{
+            logger.info("configDir: " + configDir);
+            loadConfigurations(configDir);
             //获取本机地址：ip:port
             String ip = InetAddress.getLocalHost().getHostAddress();
-            System.out.println("Server IP address:" + ip);
+            logger.info("Server IP:" + ip);
             String localaddr = ip+":"+port;
-//            获取数据库连接z
+            //获取数据库连接
             String url = "jdbc:mysql://"+ ip + ":3306/DISTRIBUTED";
             databaseConnection = new DatabaseConnection(url, username, password);
             databaseConnection.connect();
@@ -68,25 +75,68 @@ public class RegionApplication {
             zookeeper.connect();
             //初始化访问次数为0
             visitCount = 0;
+
         } catch (Exception e){
             e.printStackTrace();
-            System.out.println("Error: Region Server init failed.");
+            logger.error("Error: Region Server init failed.");
         }
     }
 
     @PreDestroy
     void destroy(){
         try{
-            System.out.println("Region Server close.");
+            logger.info("Region Server close.");
             zookeeper.close();
         } catch (Exception e){
-            System.out.println("Error: Region Server close failed.");
+            logger.error("Error: Region Server close failed.");
         }
     }
 
+    void loadConfigurations(String file){
+        try {
+
+            File configFile = new File(file);
+            if(!configFile.exists()){
+                logger.error("Error: Configurations file not found.");
+                return;
+            }
+
+            byte[] data = Files.readAllBytes(configFile.toPath());
+            JSONObject jsonObject = JSON.parseObject(new String(data));
+            Configs.zkServer = jsonObject.getString("zkServer");
+            Configs.regionPort = jsonObject.getInteger("regionPort");
+            Configs.maxRegions = jsonObject.getInteger("maxRegions");
+            Configs.maxServers = jsonObject.getInteger("maxServers");
+            Configs.DBUsername = jsonObject.getString("DBUsername");
+            Configs.DBPassword = jsonObject.getString("DBPassword");
+
+            //兼容
+            this.zkServerAddr = Configs.zkServer;
+            this.port = Configs.regionPort;
+            this.maxRegions = Configs.maxRegions;
+            this.maxServers = Configs.maxServers;
+            this.username = Configs.DBUsername;
+            this.password = Configs.DBPassword;
+
+
+            logger.info("zkServerAddr: " + this.zkServerAddr);
+            logger.info("port: " + this.port);
+            logger.info("maxRegions: " +  this.maxRegions);
+            logger.info("maxServers: " + this.maxServers);
+            logger.info("username: " + this.username);
+            logger.info("password: " + this.password);
+
+
+            logger.info("Configurations loaded...");
+        } catch (IOException e) {
+            logger.error(e.getMessage());
+        }
+    }
+
+
     @RequestMapping("/test")
     public String test(@RequestBody String sql){
-        System.out.println("SQL: " + sql);
+        logger.info("SQL: " + sql);
         return "Region Server is running.";
     }
 
@@ -95,7 +145,7 @@ public class RegionApplication {
     @RequestMapping("/create")
     public JSONObject createTable(@RequestBody SQLParams params){
         visitCount++;
-        System.out.println("SQL: " + params.getSql());
+        logger.info("SQL: " + params.getSql());
         JSONObject res = new JSONObject();
         //1. 执行SQL语句
         try{
@@ -110,7 +160,7 @@ public class RegionApplication {
                 }
             }
         }catch (Exception e){
-            System.out.println("Error: Region Server create table failed.");
+            logger.error("Error: Region Server create table failed.");
             res.put("status", "500");
             res.put("msg", "Create table failed");
             return res;
@@ -125,7 +175,7 @@ public class RegionApplication {
             try{
                 zookeeper.addTable(params.getTableName());
             }catch (Exception e){
-                System.out.println("Error: Region Server update table info failed.");
+                logger.error("Error: Region Server update table info failed.");
                 res.put("status", "500");
                 res.put("msg", "Update table info failed");
                 return res;
@@ -139,7 +189,7 @@ public class RegionApplication {
     @RequestMapping("/drop")
     public JSONObject dropTable(@RequestBody SQLParams params){
         visitCount++;
-        System.out.println("SQL: " + params.getSql());
+        logger.info("SQL: " + params.getSql());
 
         JSONObject res = new JSONObject();
         //1. 执行SQL语句
@@ -155,7 +205,7 @@ public class RegionApplication {
                 }
             }
         }catch (Exception e){
-            System.out.println("Error: Region Server drop table failed.");
+            logger.error("Error: Region Server drop table failed.");
             res.put("status", "500");
             res.put("msg", "Drop table failed");
             return res;
@@ -171,7 +221,7 @@ public class RegionApplication {
             try{
                 zookeeper.removeTable(params.getTableName());
             }catch (Exception e){
-                System.out.println("Error: Region Server update table info failed.");
+                logger.error("Error: Region Server update table info failed.");
                 res.put("status", "500");
                 res.put("msg", "Update table info failed");
                 return res;
@@ -185,7 +235,7 @@ public class RegionApplication {
     @RequestMapping("/query")
     public JSONObject queryTable(@RequestBody SQLParams params) {
         visitCount++;
-        System.out.println("SQL: " + params.getSql());
+        logger.info("SQL: " + params.getSql());
 
         JSONObject res = new JSONObject();
         //1. 在本slave执行SQL语句
@@ -204,7 +254,7 @@ public class RegionApplication {
 
             CheckSum checkSum = new CheckSum(databaseConnection);
             long myCRCResult = checkSum.getCRC4Result(datalist);
-            System.out.println("CRCResult: " + myCRCResult);
+            logger.info("CRCResult: " + myCRCResult);
         //2. 转发sql语句到其他slave进行vote表决
             if(vote(params.getSql(), params.getTableName(), myCRCResult)){
                 res.put("status", "200");
@@ -218,7 +268,7 @@ public class RegionApplication {
                     else
                         first_row.append(meta.getColumnName(i)).append(" ");
                 }
-                res.put("Column Name:", first_row.toString());
+                res.put("Column Name", first_row.toString());
                 for(int i = 0; i < datalist.size(); i++){
                     StringBuilder row = new StringBuilder();
                     for(int j = 0; j < datalist.get(0).length; j++){
@@ -227,7 +277,7 @@ public class RegionApplication {
                         else
                             row.append(datalist.get(i)[j]).append(" ");
                     }
-                    res.put("Row "+ String.valueOf(i+1) +" :", row.toString());
+                    res.put("Row "+ String.valueOf(i+1), row.toString());
                 }
             }
             else
@@ -235,9 +285,9 @@ public class RegionApplication {
 
         }catch (Exception e){
             e.printStackTrace();
-            System.out.println("Error: Region Server query table failed.");
+            logger.error("Error: Region Server query table failed.");
             res.put("status", "500");
-            res.put("message", "Query table failed.");
+            res.put("msg", "Query table failed.");
         }
         return res;
     }
@@ -245,7 +295,7 @@ public class RegionApplication {
     @RequestMapping("/update")
     public JSONObject updateTable(@RequestBody SQLParams params){
         visitCount++;
-        System.out.println("SQL: " + params.getSql());
+        logger.info("SQL: " + params.getSql());
 
         JSONObject res = new JSONObject();
         //1. 执行SQL语句
@@ -261,7 +311,7 @@ public class RegionApplication {
                 }
             }
         }catch (Exception e){
-            System.out.println("Error: Region Server update table failed.");
+            logger.error("Error: Region Server update table failed.");
             res.put("status", "500");
             res.put("msg", "Update table failed");
             return res;
@@ -282,27 +332,27 @@ public class RegionApplication {
     public void executeSQLUpdated(String sql){
         try{
             Connection conn = databaseConnection.getConnection();
-            System.out.println("SQL Executed: " + sql);
+            logger.info("SQL Executed: " + sql);
             //SQL注入风险，不管了。。
             PreparedStatement ps = conn.prepareStatement(sql);
             ps.executeUpdate();
         }catch (Exception e){
             e.printStackTrace();
-            System.out.println("Error: Region Server execute sql failed.");
+            logger.error("Error: Region Server execute sql failed.");
         }
     }
 
     public ResultSet executeSQLQuery(String sql){
         try{
             Connection conn = databaseConnection.getConnection();
-            System.out.println("SQL Executed: " + sql);
+            logger.info("SQL Executed: " + sql);
             //SQL注入风险，不管了。。
             PreparedStatement ps = conn.prepareStatement(sql);
             ResultSet rs = ps.executeQuery();
             return rs;
         }catch (Exception e){
             e.printStackTrace();
-            System.out.println("Error: Region Server execute sql failed.");
+            logger.error("Error: Region Server execute sql failed.");
         }
         return null;
     }
@@ -325,9 +375,9 @@ public class RegionApplication {
             ResponseEntity<String> responseEntity = restTemplate.exchange(slaveurl, HttpMethod.POST, requestEntity, String.class);
             int statusCode = responseEntity.getStatusCode().value();
             if (statusCode == 200) {
-                System.out.println("Forward to " + slaveAddr + " successfully.");
+                logger.info("Forward to " + slaveAddr + " successfully.");
             } else {
-                System.out.println("Forward to " + slaveAddr + " failed.");
+                logger.info("Forward to " + slaveAddr + " failed.");
             }
         }
     }
@@ -345,16 +395,16 @@ public class RegionApplication {
         ResponseEntity<String> responseEntity = restTemplate.exchange(slaveurl, HttpMethod.POST, requestEntity, String.class);
         int statusCode = responseEntity.getStatusCode().value();
         if (statusCode == 200) {
-            System.out.println("Forward to " + targetIP + " successfully.");
+            logger.info("Forward to " + targetIP + " successfully.");
         } else {
-            System.out.println("Forward to " + targetIP + " failed.");
+            logger.info("Forward to " + targetIP + " failed.");
         }
     }
 
     public boolean vote(String sql, String tableName, long myCRCResult) throws SQLException {
         List<String> slavesAddrs = zookeeper.getSlaves();
         for(String slaveAddr: slavesAddrs) {
-            System.out.println("Slave: " + slaveAddr);
+            logger.info("Slave: " + slaveAddr);
         }
         int supports_num = 1;
         //转发请求并获取结果
@@ -375,13 +425,13 @@ public class RegionApplication {
                 supports_num++;
             }
             else
-                System.out.println("ERROR CRCResult: " + CRCResult);
+                logger.error("ERROR CRCResult: " + CRCResult);
         }
         if(supports_num >= slavesAddrs.size() / 2  + 1 ) {
             return true;
         }
 
-        System.out.println("Error: Vote can't exceed half of the slaves.");
+        logger.error("Error: Vote can't exceed half of the slaves.");
         return false;
     }
 
@@ -394,7 +444,7 @@ public class RegionApplication {
             res.put("CRCResult", checkSum.getCRC4ResultSet(rs));
         }catch(Exception e){
             res.put("status",  "500");
-            System.out.println("Error: Get CRC4Result failed.");
+            logger.error("Error: Get CRC4Result failed.");
             return res;
         }
         res.put("status", "200");
@@ -403,7 +453,7 @@ public class RegionApplication {
 
     @RequestMapping("/hotsend")
     public JSONObject hotSend(@RequestBody List<TransfrerMeta> tables,  @RequestParam String targetIP, @RequestParam String targetRegionID)  {
-        System.out.println("Hot is sending to " + targetIP  + " ...");
+        logger.info("Hot is sending to " + targetIP  + " ...");
         JSONObject res = new JSONObject();
         DatabaseConnection target_databaseConnection = new DatabaseConnection("jdbc:mysql://"+ targetIP + ":3306/DISTRIBUTED", username, password);
 
@@ -470,10 +520,10 @@ public class RegionApplication {
                 }
                 String target_hash_range = start+","+end;
                 String original_hash_range = table.getOriginalStart() + "," + table.getOriginalEnd();
-                System.out.println("target:" + target_hash_range);
-                System.out.println("original" +  original_hash_range);
-                System.out.println("targetID:" + targetRegionID);
-                System.out.println("sourceID:" + zookeeper.getRegionID());
+                logger.info("target:" + target_hash_range);
+                logger.info("original" +  original_hash_range);
+                logger.info("targetID:" + targetRegionID);
+                logger.info("sourceID:" + zookeeper.getRegionID());
                 zookeeper.updateTable(tableName, String.valueOf(zookeeper.getRegionID()), original_hash_range);
                 zookeeper.updateTable(tableName, targetRegionID, target_hash_range);
             }

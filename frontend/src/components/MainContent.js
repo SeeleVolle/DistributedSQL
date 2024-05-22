@@ -4,12 +4,12 @@ import axios from 'axios';
 import {CheckCircleOutlined, CloseCircleOutlined, ThunderboltOutlined} from '@ant-design/icons';
 
 const { TextArea } = Input;
-const MasterNode = {
-    NODE_1: 'http://10.194.223.161:8081',
-    NODE_2: 'http://10.194.223.161:8082',
-    NODE_3: 'http://10.194.223.161:8083',
-    NODE_4: 'http://10.194.223.161:8084'
-};
+const MasterNode = [
+    'http://10.193.161.72:8080',
+    // 'http://10.193.161.72:8082',
+    // 'http://10.193.161.72:8083',
+    // 'http://10.193.161.72:8084'
+];
 // const server = "http://127.0.0.1:8080";
 
 const MainContent = () => {

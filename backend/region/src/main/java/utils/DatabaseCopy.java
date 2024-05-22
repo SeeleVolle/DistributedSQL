@@ -1,5 +1,8 @@
 package utils;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javax.sql.DataSource;
 import java.sql.*;
 
@@ -14,6 +17,8 @@ import java.sql.*;
  */
 
 public class DatabaseCopy{
+    private static final Logger logger = LoggerFactory.getLogger(DatabaseCopy.class);
+    
     private DatabaseConnection sourceDataSource;
     private DatabaseConnection targetDataSource;
 
@@ -31,12 +36,12 @@ public class DatabaseCopy{
 
             while(sourceTables.next()){
                 String sourceTable = sourceTables.getString(1);
-                System.out.println("Copying table " + sourceTable + "...");
+                logger.info("Copying table " + sourceTable + "...");
                 copyTable(sourceTable, sourceTable);
             }
         }catch (Exception e){
             e.printStackTrace();
-            System.out.println("Failed to copy data from source database to target database");
+            logger.error("Failed to copy data from source database to target database");
         }
     }
     public void copyTable(String sourceTable, String targetTable){

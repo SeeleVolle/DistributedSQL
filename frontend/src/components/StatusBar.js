@@ -4,12 +4,12 @@ import { Table, Button } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 
 // const server = "http://127.0.0.1:8080";
-const MasterNode = {
-    NODE_1: 'http://10.194.223.161:8081',
-    NODE_2: 'http://10.194.223.161:8082',
-    NODE_3: 'http://10.194.223.161:8083',
-    NODE_4: 'http://10.194.223.161:8084'
-};
+const MasterNode = [
+    'http://10.193.161.72:8080',
+    // 'http://10.193.161.72:8082',
+    // 'http://10.193.161.72:8083',
+    // 'http://10.193.161.72:8084'
+];
 
 const StatusBar = () => {
     const data = {};
@@ -30,8 +30,10 @@ const StatusBar = () => {
                     )
                 ]);
 
-                if (response.data && response.data.data && response.data.data.meta && response.data.data.meta.data) {
-                    const responseData = response.data.data.meta.data;
+                console.log(response);
+
+                if (response.data && response.data.data && response.data.data.meta && response.data.data.meta.regions) {
+                    const responseData = response.data.data.meta.regions;
                     const allTables = responseData.reduce((acc, curr) => {
                         return [...acc, ...curr.tables];
                     }, []);

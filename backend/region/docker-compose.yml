@@ -1,0 +1,13 @@
+version: '3.1'
+
+services:
+  master1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./configurations.json:/region/configurations.json
+    environment:
+      ZK_SERVERS: /master/configurations.json
+    ports:
+      - "8081:8080"
