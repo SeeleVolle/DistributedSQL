@@ -20,8 +20,15 @@ public class PersistenceHandler {
 
     public static void loadConfigurations(String file) {
         try {
+            logger.info("Loading configuration file '{}'", file);
             byte[] data = Files.readAllBytes(new File(file).toPath());
-            JSONObject jsonObject = JSON.parseObject(new String(data));
+            JSONObject jsonObject;
+            try {
+                jsonObject = JSON.parseObject(new String(data));
+            } catch (Exception e) {
+                logger.error("Failed to parse configurations file");
+                return;
+            }
             Configs.ZK_SERVERS = jsonObject.getList("ZK_SERVERS", String.class);
             Configs.MAX_HOTPOINT_THRESHOLD = jsonObject.getInteger("MAX_HOTPOINT_THRESHOLD");
             Configs.MIN_HOTPOINT_THRESHOLD = jsonObject.getInteger("MIN_HOTPOINT_THRESHOLD");
