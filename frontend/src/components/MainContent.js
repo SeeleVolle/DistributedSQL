@@ -5,7 +5,7 @@ import {CheckCircleOutlined, CloseCircleOutlined, ThunderboltOutlined} from '@an
 
 const { TextArea } = Input;
 const MasterNode = [
-    'http://172.25.2.229:8080'
+    'http://127.0.0.1:8080'
     // 'http://10.194.223.161:8081',
     // 'http://10.194.223.161:8082',
     // 'http://10.194.223.161:8083',
@@ -85,6 +85,9 @@ const MainContent = () => {
 
     const handleSubmit = async () => {
         const trimmedStatements = parseSQLStatements(text);
+
+        setDataSource([]);
+        setColumns([]);
 
         for (const trimmedStatement of trimmedStatements) {
             let type = '';
@@ -172,7 +175,7 @@ const MainContent = () => {
                                 </span>
                                 );
                                 setMsgList(prevMsgList => {
-                                    return [...prevMsgList, newMsg].slice(-8);
+                                    return [...prevMsgList, newMsg].slice(-20);
                                 });
                             } else {
                                 const requests = hostNames.map(hostName => {
@@ -209,7 +212,7 @@ const MainContent = () => {
                                             </span>
                                         );
                                         setMsgList(prevMsgList => {
-                                            return [...prevMsgList, newMsg].slice(-8);
+                                            return [...prevMsgList, newMsg].slice(-20);
                                         });
 
                                         if (type === 'QUERY' && allStatus === '200') {
@@ -221,7 +224,7 @@ const MainContent = () => {
                                                 console.log(response.data);
                                                 if (status === '200') {
                                                     Object.keys(data).forEach(key => {
-                                                        if (key === 'Column Name') {
+                                                        if (key === 'Column Name' && !newColumns.length) {
                                                             const columnNames = data[key].split(" ");
                                                             columnNames.forEach(name => {
                                                                 newColumns.push({
@@ -233,16 +236,21 @@ const MainContent = () => {
                                                         }
                                                     });
                                                     console.log(newColumns);
+
+                                                    const existingRows = new Map();
                                                     Object.keys(data).forEach(key => {
-                                                        if (key !== 'Column Name'){
+                                                        if (key !== 'Column Name') {
                                                             const rowKey = key.match(/\d+/)[0];
-                                                            const rowData = data[key].split(" ");
-                                                            const rowObject = { key: rowKey };
-                                                            rowData.forEach((value, index) => {
-                                                                const columnName = newColumns[index].dataIndex;
-                                                                rowObject[columnName] = value;
-                                                            });
-                                                            newDataSource.push(rowObject);
+                                                            if (!existingRows.has(rowKey)) {
+                                                                const rowData = data[key].split(" ");
+                                                                const rowObject = { key: rowKey };
+                                                                rowData.forEach((value, index) => {
+                                                                    const columnName = newColumns[index].dataIndex;
+                                                                    rowObject[columnName] = value;
+                                                                });
+                                                                newDataSource.push(rowObject);
+                                                                existingRows.set(rowKey, true);
+                                                            }
                                                         }
                                                     });
                                                 }
@@ -316,7 +324,11 @@ const MainContent = () => {
                                 renderItem={item => (
                                     <List.Item style={{ fontSize: '12px', color: 'grey' }}>{item}</List.Item>
                                 )}
-                                style={{ background: 'white' }}
+                                style={{
+                                    background: 'white',
+                                    height: '370px',
+                                    overflowY: 'auto',
+                                }}
                             />
                         </Layout.Content>
                     </Col>
