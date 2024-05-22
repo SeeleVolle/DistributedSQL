@@ -1,5 +1,6 @@
 package region;
 
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.JSON;
 import jakarta.annotation.PostConstruct;
@@ -147,40 +148,51 @@ public class RegionApplication {
         visitCount++;
         logger.info("SQL: " + params.getSql());
         JSONObject res = new JSONObject();
-        //1. 执行SQL语句
-        try{
-            executeSQLUpdated(params.getSql());
-            if(!zookeeper.isMaster()){
-                CheckSum checkSum = new CheckSum(databaseConnection);
-                long myCRCResult = checkSum.getCRC4Table(params.getTableName());
-                long masterCRCResult = Long.valueOf(params.getCrcResult());
-                if(myCRCResult != masterCRCResult){
-                    String masterAddr = zookeeper.getMasterAddr();
-                    zookeeper.CopyFromRemoteTable(masterAddr, params.getTableName());
-                }
-            }
-        }catch (Exception e){
-            logger.error("Error: Region Server create table failed.");
+        //0. 检车表是否存在
+        if(zookeeper.isTableExist(params.getTableName())){
+            logger.info("Table " + params.getTableName() + " already exists.");
             res.put("status", "500");
-            res.put("msg", "Create table failed");
+            res.put("msg", "Table " + params.getTableName() + " already exists.");
             return res;
         }
-        //2. master转发sql语句到该Region下的所有slave
-        if(zookeeper.isMaster()){
-            while(!zookeeper.isReady());
-            CheckSum checkSum = new CheckSum(databaseConnection);
-            long myCRCResult = checkSum.getCRC4Table(params.getTableName());
-            forward(params.getSql(), "create", params.getTableName(), myCRCResult);
-        //3. 更新zk下的table信息
+        else{
             try{
-                zookeeper.addTable(params.getTableName());
+                executeSQLUpdated(params.getSql());
+                if(!zookeeper.isMaster()){
+                    CheckSum checkSum = new CheckSum(databaseConnection);
+                    long myCRCResult = checkSum.getCRC4Table(params.getTableName());
+                    long masterCRCResult = Long.valueOf(params.getCrcResult());
+                    if(myCRCResult != masterCRCResult){
+                        String masterAddr = zookeeper.getMasterAddr();
+                        zookeeper.CopyFromRemoteTable(masterAddr, params.getTableName());
+                    }
+                }
             }catch (Exception e){
-                logger.error("Error: Region Server update table info failed.");
+                logger.error("Error: Region Server create table failed.");
                 res.put("status", "500");
-                res.put("msg", "Update table info failed");
+                res.put("msg", "Create table failed");
                 return res;
             }
+            //2. master转发sql语句到该Region下的所有slave
+            if(zookeeper.isMaster()){
+                while(!zookeeper.isReady());
+                CheckSum checkSum = new CheckSum(databaseConnection);
+                long myCRCResult = checkSum.getCRC4Table(params.getTableName());
+                forward(params.getSql(), "create", params.getTableName(), myCRCResult);
+                //3. 更新zk下的table信息
+                try{
+                    zookeeper.addTable(params.getTableName());
+                }catch (Exception e){
+                    logger.error("Error: Region Server update table info failed.");
+                    res.put("status", "500");
+                    res.put("msg", "Update table info failed");
+                    return res;
+                }
+            }
         }
+
+        //1. 执行SQL语句
+
         res.put("status", "200");
         res.put("msg", "Create table successfully");
         return res;
@@ -190,41 +202,49 @@ public class RegionApplication {
     public JSONObject dropTable(@RequestBody SQLParams params){
         visitCount++;
         logger.info("SQL: " + params.getSql());
-
         JSONObject res = new JSONObject();
-        //1. 执行SQL语句
-        try{
-            executeSQLUpdated(params.getSql());
-            if(!zookeeper.isMaster()){
-                CheckSum checkSum = new CheckSum(databaseConnection);
-                long myCRCResult = checkSum.getCRC4Table(params.getTableName());
-                long masterCRCResult = Long.valueOf(params.getCrcResult());
-                if(myCRCResult != masterCRCResult){
-                    String masterAddr = zookeeper.getMasterAddr();
-                    zookeeper.CopyFromRemoteTable(masterAddr, params.getTableName());
-                }
-            }
-        }catch (Exception e){
-            logger.error("Error: Region Server drop table failed.");
+
+        if(zookeeper.isTableExist(params.getTableName()) == false){
+            logger.info("Table " + params.getTableName() + " doesn't exist.");
             res.put("status", "500");
-            res.put("msg", "Drop table failed");
+            res.put("msg", "Table " + params.getTableName() + " doesn't exist.");
             return res;
         }
-
-        //2. master转发sql语句到该Region下的所有slave
-        if(zookeeper.isMaster()){
-            while(!zookeeper.isReady());
-            CheckSum checkSum = new CheckSum(databaseConnection);
-            long myCRCResult = checkSum.getCRC4Table(params.getTableName());
-            forward(params.getSql(), "drop", params.getTableName(), myCRCResult);
-        //3. 更新zk下的table信息
+        else{
+            //1. 执行SQL语句
             try{
-                zookeeper.removeTable(params.getTableName());
+                executeSQLUpdated(params.getSql());
+                if(!zookeeper.isMaster()){
+                    CheckSum checkSum = new CheckSum(databaseConnection);
+                    long myCRCResult = checkSum.getCRC4Table(params.getTableName());
+                    long masterCRCResult = Long.valueOf(params.getCrcResult());
+                    if(myCRCResult != masterCRCResult){
+                        String masterAddr = zookeeper.getMasterAddr();
+                        zookeeper.CopyFromRemoteTable(masterAddr, params.getTableName());
+                    }
+                }
             }catch (Exception e){
-                logger.error("Error: Region Server update table info failed.");
+                logger.error("Error: Region Server drop table failed.");
                 res.put("status", "500");
-                res.put("msg", "Update table info failed");
+                res.put("msg", "Drop table failed");
                 return res;
+            }
+
+            //2. master转发sql语句到该Region下的所有slave
+            if(zookeeper.isMaster()){
+                while(!zookeeper.isReady());
+                CheckSum checkSum = new CheckSum(databaseConnection);
+                long myCRCResult = checkSum.getCRC4Table(params.getTableName());
+                forward(params.getSql(), "drop", params.getTableName(), myCRCResult);
+                //3. 更新zk下的table信息
+                try{
+                    zookeeper.removeTable(params.getTableName());
+                }catch (Exception e){
+                    logger.error("Error: Region Server update table info failed.");
+                    res.put("status", "500");
+                    res.put("msg", "Update table info failed");
+                    return res;
+                }
             }
         }
         res.put("status", "200");
@@ -238,56 +258,64 @@ public class RegionApplication {
         logger.info("SQL: " + params.getSql());
 
         JSONObject res = new JSONObject();
-        //1. 在本slave执行SQL语句
-        try{
-            ResultSet rs = executeSQLQuery(params.getSql());
-            ResultSetMetaData meta = rs.getMetaData();
-
-            List<Object[]> datalist = new ArrayList<>();
-            while(rs.next()){
-                Object[] rowData = new Object[rs.getMetaData().getColumnCount()];
-                for(int i = 0; i < rs.getMetaData().getColumnCount(); i++){
-                    rowData[i] = rs.getObject(i+1);
-                }
-                datalist.add(rowData);
-            }
-
-            CheckSum checkSum = new CheckSum(databaseConnection);
-            long myCRCResult = checkSum.getCRC4Result(datalist);
-            logger.info("CRCResult: " + myCRCResult);
-        //2. 转发sql语句到其他slave进行vote表决
-            if(vote(params.getSql(), params.getTableName(), myCRCResult)){
-                res.put("status", "200");
-                res.put("msg", "Query table successfully");
-        //3. 返回查询结果
-                int columns = meta.getColumnCount();
-                StringBuilder first_row = new StringBuilder();
-                for(int i = 1; i <= columns; i++){
-                    if(i == columns)
-                        first_row.append(meta.getColumnName(i));
-                    else
-                        first_row.append(meta.getColumnName(i)).append(" ");
-                }
-                res.put("Column Name", first_row.toString());
-                for(int i = 0; i < datalist.size(); i++){
-                    StringBuilder row = new StringBuilder();
-                    for(int j = 0; j < datalist.get(0).length; j++){
-                        if(j == datalist.get(0).length - 1)
-                            row.append(datalist.get(i)[j]);
-                        else
-                            row.append(datalist.get(i)[j]).append(" ");
-                    }
-                    res.put("Row "+ String.valueOf(i+1), row.toString());
-                }
-            }
-            else
-                throw new Exception();
-
-        }catch (Exception e){
-            e.printStackTrace();
-            logger.error("Error: Region Server query table failed.");
+        if(zookeeper.isTableExist(params.getTableName()) == false){
+            logger.info("Table " + params.getTableName() + " doesn't exist.");
             res.put("status", "500");
-            res.put("msg", "Query table failed.");
+            res.put("msg", "Table " + params.getTableName() + " doesn't exist.");
+            return res;
+        }
+        else{
+            //1. 在本slave执行SQL语句
+            try{
+                ResultSet rs = executeSQLQuery(params.getSql());
+                ResultSetMetaData meta = rs.getMetaData();
+
+                List<Object[]> datalist = new ArrayList<>();
+                while(rs.next()){
+                    Object[] rowData = new Object[rs.getMetaData().getColumnCount()];
+                    for(int i = 0; i < rs.getMetaData().getColumnCount(); i++){
+                        rowData[i] = rs.getObject(i+1);
+                    }
+                    datalist.add(rowData);
+                }
+
+                CheckSum checkSum = new CheckSum(databaseConnection);
+                long myCRCResult = checkSum.getCRC4Result(datalist);
+                logger.info("CRCResult: " + myCRCResult);
+                //2. 转发sql语句到其他slave进行vote表决
+                if(vote(params.getSql(), params.getTableName(), myCRCResult)){
+                    res.put("status", "200");
+                    res.put("msg", "Query table successfully");
+                    //3. 返回查询结果
+                    int columns = meta.getColumnCount();
+                    StringBuilder first_row = new StringBuilder();
+                    for(int i = 1; i <= columns; i++){
+                        if(i == columns)
+                            first_row.append(meta.getColumnName(i));
+                        else
+                            first_row.append(meta.getColumnName(i)).append(" ");
+                    }
+                    res.put("Column Name", first_row.toString());
+                    for(int i = 0; i < datalist.size(); i++){
+                        StringBuilder row = new StringBuilder();
+                        for(int j = 0; j < datalist.get(0).length; j++){
+                            if(j == datalist.get(0).length - 1)
+                                row.append(datalist.get(i)[j]);
+                            else
+                                row.append(datalist.get(i)[j]).append(" ");
+                        }
+                        res.put("Row "+ String.valueOf(i+1), row.toString());
+                    }
+                }
+                else
+                    throw new Exception();
+
+            }catch (Exception e){
+                e.printStackTrace();
+                logger.error("Error: Region Server query table failed.");
+                res.put("status", "500");
+                res.put("msg", "Query table failed.");
+            }
         }
         return res;
     }
@@ -298,34 +326,42 @@ public class RegionApplication {
         logger.info("SQL: " + params.getSql());
 
         JSONObject res = new JSONObject();
-        //1. 执行SQL语句
-        try{
-            executeSQLUpdated(params.getSql());
-            if(!zookeeper.isMaster()){
-                CheckSum checkSum = new CheckSum(databaseConnection);
-                long myCRCResult = checkSum.getCRC4Table(params.getTableName());
-                long masterCRCResult = Long.valueOf(params.getCrcResult());
-                if(myCRCResult != masterCRCResult){
-                    String masterAddr = zookeeper.getMasterAddr();
-                    zookeeper.CopyFromRemoteTable(masterAddr, params.getTableName());
-                }
-            }
-        }catch (Exception e){
-            logger.error("Error: Region Server update table failed.");
+        if(zookeeper.isTableExist(params.getTableName()) == false){
+            logger.info("Table " + params.getTableName() + " doesn't exist.");
             res.put("status", "500");
-            res.put("msg", "Update table failed");
+            res.put("msg", "Table " + params.getTableName() + " doesn't exist.");
             return res;
         }
+        else{
+            //1. 执行SQL语句
+            try{
+                executeSQLUpdated(params.getSql());
+                if(!zookeeper.isMaster()){
+                    CheckSum checkSum = new CheckSum(databaseConnection);
+                    long myCRCResult = checkSum.getCRC4Table(params.getTableName());
+                    long masterCRCResult = Long.valueOf(params.getCrcResult());
+                    if(myCRCResult != masterCRCResult){
+                        String masterAddr = zookeeper.getMasterAddr();
+                        zookeeper.CopyFromRemoteTable(masterAddr, params.getTableName());
+                    }
+                }
+            }catch (Exception e){
+                logger.error("Error: Region Server update table failed.");
+                res.put("status", "500");
+                res.put("msg", "Update table failed");
+                return res;
+            }
 
-        //2. master转发sql语句到该Region下的所有slave
-        if(zookeeper.isMaster()){
-            while(!zookeeper.isReady());
-            CheckSum checkSum = new CheckSum(databaseConnection);
-            long myCRCResult = checkSum.getCRC4Table(params.getTableName());
-            forward(params.getSql(), "update", params.getTableName(), myCRCResult);
+            //2. master转发sql语句到该Region下的所有slave
+            if(zookeeper.isMaster()){
+                while(!zookeeper.isReady());
+                CheckSum checkSum = new CheckSum(databaseConnection);
+                long myCRCResult = checkSum.getCRC4Table(params.getTableName());
+                forward(params.getSql(), "update", params.getTableName(), myCRCResult);
+            }
+            res.put("status", "200");
+            res.put("msg", "Update table successfully");
         }
-        res.put("status", "200");
-        res.put("msg", "Update table successfully");
         return res;
     }
 
@@ -379,6 +415,54 @@ public class RegionApplication {
             } else {
                 logger.info("Forward to " + slaveAddr + " failed.");
             }
+        }
+    }
+
+    public void forward(List<String>sqlList,  String type, String tableName, long myCRCResult){
+        List<String> slavesAddrs = zookeeper.getSlaves();
+        for(String slaveAddr: slavesAddrs) {
+            String slaveurl = "http://" + slaveAddr.substring(0, slaveAddr.indexOf(":")) + ":9090/" + type;
+            RestTemplate restTemplate = new RestTemplate();
+            //设置参数
+            JSONObject params = new JSONObject();
+            JSONArray sqls = new JSONArray();
+            sqls.addAll(sqlList);
+            params.put("sqlList", sqls);
+            params.put("tableName", tableName);
+            params.put("CRCResult", String.valueOf(myCRCResult));
+            //设置请求头和请求体
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<JSONObject> requestEntity = new HttpEntity<>(params, headers);
+            //发送请求并获取响应
+            ResponseEntity<String> responseEntity = restTemplate.exchange(slaveurl, HttpMethod.POST, requestEntity, String.class);
+            int statusCode = responseEntity.getStatusCode().value();
+            if (statusCode == 200) {
+                logger.info("Forward to " + slaveAddr + " successfully.");
+            } else {
+                logger.info("Forward to " + slaveAddr + " failed.");
+            }
+        }
+    }
+
+    public void forwardToTarget(List<String>sqlList, String type, String tableName, String targetIP){
+        RestTemplate restTemplate = new RestTemplate();
+        String slaveurl = "http://" + targetIP + ":9090/" +  type;
+        //设置参数
+        JSONObject params = new JSONObject();
+        JSONArray sqls = new JSONArray();
+        sqls.addAll(sqlList);
+        params.put("sqlList", sqls);
+        params.put("tableName", tableName);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<JSONObject> requestEntity = new HttpEntity<>(params, headers);
+        ResponseEntity<String> responseEntity = restTemplate.exchange(slaveurl, HttpMethod.POST, requestEntity, String.class);
+        int statusCode = responseEntity.getStatusCode().value();
+        if (statusCode == 200) {
+            logger.info("Forward to " + targetIP + " successfully.");
+        } else {
+            logger.info("Forward to " + targetIP + " failed.");
         }
     }
 
@@ -491,54 +575,99 @@ public class RegionApplication {
                 }
                 PreparedStatement ps = databaseConnection.getConnection().prepareStatement("SELECT "+ primaryName +" FROM " + tableName);
                 ResultSet primary_rs = ps.executeQuery();
+                PreparedStatement column_ps = databaseConnection.getConnection().prepareStatement("SELECT * FROM " + tableName);
+                ResultSetMetaData column_metaData = column_ps.executeQuery().getMetaData();
+                PreparedStatement target_ps_insert = target_conn.prepareStatement(tableCopy.generateInsertStatment(column_metaData));
+                StringBuilder deleteSQL =  new StringBuilder("DELETE FROM " + tableName + " WHERE " + primaryName + " IN ");
+                ArrayList<String> insertSQLs = new ArrayList<String>();
                 //遍历主键
                 while(primary_rs.next()){
                     String primaryValue = primary_rs.getString(1);
                     int hash = primaryValue.hashCode();
                     if(hash >= start && hash < end){
+                        deleteSQL.append("'" + primaryValue + "',");
                         //在target上插入, 需要调用相应的接口
                         PreparedStatement source_row_sql = databaseConnection.getConnection().prepareStatement("SELECT * FROM " + tableName + " WHERE " + primaryName + " = " + primaryValue);
                         ResultSet source_rs = source_row_sql.executeQuery();
                         ResultSetMetaData source_rs_metadata= source_rs.getMetaData();
                         if(source_rs.next()) {
-                            PreparedStatement target_ps_insert = target_conn.prepareStatement(tableCopy.generateInsertStatment(source_rs_metadata));
                             int columns = source_rs_metadata.getColumnCount();
                             for(int i = 1; i <= columns; i++){
                                 target_ps_insert.setObject(i, source_rs.getObject(i));
                             }
-                            String insertSQL = getSQLString(target_ps_insert);
-                            forwardToTarget(insertSQL, "update", tableName, targetIP);
+                            target_ps_insert.addBatch();
+                            insertSQLs.add(getSQLString(target_ps_insert));
                         }
+                        forwardToTarget(insertSQLs, "updateBatch", tableName, targetIP);
                         //在source上删除, 同步删除
-                        String deleteSQL = "DELETE FROM " + tableName + " WHERE " + primaryName + " = " + primaryValue;
-                        PreparedStatement source_ps_delete = databaseConnection.getConnection().prepareStatement(deleteSQL);
+                        PreparedStatement source_ps_delete = databaseConnection.getConnection().prepareStatement(deleteSQL.toString());
                         source_ps_delete.executeUpdate();
                         CheckSum checkSum = new CheckSum(databaseConnection);
                         long myCRCResult = checkSum.getCRC4Table(tableName);
-                        forward(deleteSQL, "update", tableName, myCRCResult);
+                        forward(deleteSQL.toString(), "update", tableName, myCRCResult);
                     }
                 }
                 String target_hash_range = start+","+end;
                 String original_hash_range = table.getOriginalStart() + "," + table.getOriginalEnd();
-                logger.info("target:" + target_hash_range);
-                logger.info("original" +  original_hash_range);
+                logger.info("target range:" + target_hash_range);
+                logger.info("original range" +  original_hash_range);
                 logger.info("targetID:" + targetRegionID);
                 logger.info("sourceID:" + zookeeper.getRegionID());
                 zookeeper.updateTable(tableName, String.valueOf(zookeeper.getRegionID()), original_hash_range);
                 zookeeper.updateTable(tableName, targetRegionID, target_hash_range);
             }
-
-
             res.put("status", "200");
             res.put("msg", "Transfer Successfully");
-
-
-
         }catch(Exception e){
             e.printStackTrace();
             res.put("status", "500");
             res.put("msg", "Transfer Failed");
         }
+
+        return res;
+    }
+
+    @RequestMapping("/updateBatch")
+    public JSONObject updateBatchTable(@RequestBody ListSQLParams params){
+        logger.info("UpdateBatch is starting...");
+        List<String> sqlParamsList = params.getSqlParamsList();
+//        System.out.println(params.getTableName());
+//        System.out.println(params.getSqlParamsList().size());
+        JSONObject res = new JSONObject();
+        //1. 执行SQL语句
+        try{
+            Connection conn = databaseConnection.getConnection();
+            Statement stmt = conn.createStatement();
+            for(String sql : sqlParamsList)
+                stmt.addBatch(sql);
+            stmt.executeBatch();
+            if(!zookeeper.isMaster()){
+                CheckSum checkSum = new CheckSum(databaseConnection);
+                long myCRCResult = checkSum.getCRC4Table(params.getTableName());
+                long masterCRCResult = Long.valueOf(params.getCrcResult());
+                if(myCRCResult != masterCRCResult){
+                    String masterAddr = zookeeper.getMasterAddr();
+                    zookeeper.CopyFromRemoteTable(masterAddr, params.getTableName());
+                }
+            }
+        }catch (Exception e){
+            e.printStackTrace();
+            logger.error("Error: Region Server update table failed.");
+            res.put("status", "500");
+            res.put("msg", "Update table failed");
+            return res;
+        }
+
+        //2. master转发sql语句到该Region下的所有slave
+        if(zookeeper.isMaster()){
+            while(!zookeeper.isReady());
+            CheckSum checkSum = new CheckSum(databaseConnection);
+            long myCRCResult = checkSum.getCRC4Table(params.getTableName());
+            forward(sqlParamsList, "updateBatch", params.getTableName(), myCRCResult);
+        }
+        res.put("status", "200");
+        res.put("msg", "Update table successfully");
+        logger.info("UpdateBatch is ended...");
 
         return res;
     }
@@ -588,6 +717,22 @@ class TransfrerMeta{
     public int getOriginalStart(){return originalStart;}
     public int getOriginalEnd(){return originalEnd;}
 
+}
+
+class ListSQLParams{
+    private List<String> sqlList;
+    private String tableName;
+    private long CRCResult;
+
+
+    ListSQLParams(List<String> sqlList, String tableName, long CRC){
+        this.sqlList = sqlList;
+        this.tableName = tableName;
+        this.CRCResult = CRC;
+    }
+    public List<String> getSqlParamsList(){return sqlList;}
+    public String getTableName(){return tableName;}
+    public long getCrcResult(){return CRCResult;}
 }
 
 

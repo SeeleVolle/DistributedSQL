@@ -206,21 +206,26 @@ public class Zookeeper {
             Connection conn = databaseConnection.getConnection();
             DatabaseMetaData dbmd = conn.getMetaData();
             PreparedStatement ps = conn.prepareStatement("show tables");
-            ResultSet rs = ps.executeQuery();
-            while(rs.next()){
-                String tableName = rs.getString(1);
-                logger.info("Write table meta: " + tableName);
-                //获取主键哈希范围并写入到Zookeeper中
-                String tableHashRange = "";
-                ResultSet primaryKeys = dbmd.getPrimaryKeys(null, null, tableName);
-                String primaryName = "*";
-                if(primaryKeys.next()){
-                    primaryName = primaryKeys.getString("COLUMN_NAME");
-                }
-                PreparedStatement ps_query = conn.prepareStatement(" SELECT " + primaryName + " FROM " + tableName);
+            ResultSet rs2 = ps.executeQuery();
+            if(!rs2.next()){
+                logger.warn("No table in this database");
+            }
+            else{
+                ResultSet rs = ps.executeQuery();
+                while(rs.next()){
+                    String tableName = rs.getString(1);
+                    logger.info("Write table meta: " + tableName);
+                    //获取主键哈希范围并写入到Zookeeper中
+                    String tableHashRange = "";
+                    ResultSet primaryKeys = dbmd.getPrimaryKeys(null, null, tableName);
+                    String primaryName = "*";
+                    if(primaryKeys.next()){
+                        primaryName = primaryKeys.getString("COLUMN_NAME");
+                    }
+                    PreparedStatement ps_query = conn.prepareStatement(" SELECT " + primaryName + " FROM " + tableName);
 //                logger.info(" SELECT " + primaryName + " FROM " + tableName);
-                ResultSet primaryps = ps_query.executeQuery();
-                int min_range = Integer.MAX_VALUE, max_range = Integer.MIN_VALUE;
+                    ResultSet primaryps = ps_query.executeQuery();
+                    int min_range = Integer.MAX_VALUE, max_range = Integer.MIN_VALUE;
 //                while(primaryps.next()){
 //                    int hash = primaryps.getString(1).hashCode() % MAX_HASH;
 //                    logger.info("hash: " + hash);
@@ -229,13 +234,17 @@ public class Zookeeper {
 //                    if(hash > max_range)
 //                        max_range = hash;
 //                }
-                if(min_range == Integer.MAX_VALUE)
-                    min_range = 0;
-                if(max_range == Integer.MIN_VALUE)
-                    max_range = MAX_HASH;
-                tableHashRange = min_range + "," + max_range;
-                client.create().withMode(CreateMode.PERSISTENT).forPath("/region" + regionID + "/tables/" + tableName, tableHashRange.getBytes());
+                    if(min_range == Integer.MAX_VALUE)
+                        min_range = 0;
+                    if(max_range == Integer.MIN_VALUE)
+                        max_range = MAX_HASH;
+                    tableHashRange = min_range + "," + max_range;
+                    client.create().withMode(CreateMode.PERSISTENT).forPath("/region" + regionID + "/tables/" + tableName, tableHashRange.getBytes());
+                }
             }
+
+
+            logger.info("Write table meta successfully");
         }catch(Exception e){
             e.printStackTrace();
             logger.error("Error: Master can't write table meta to zkserver");
@@ -363,13 +372,15 @@ public class Zookeeper {
                     else
                         client.delete().forPath("/region" + regionID + "/slaves/slave" + serverID);
                 }
-                if(client.checkExists().forPath("/region" + regionID + "/master") == null && client.checkExists().forPath("/region" + regionID) != null &&
+                if(client.checkExists().forPath("/region" + regionID) != null && client.checkExists().forPath("/region" + regionID + "/master") == null  &&
                    client.checkExists().forPath("/region" + regionID + "/slaves") != null){
                     List<String> children_slave = client.getChildren().forPath("/region" + regionID + "/slaves");
+                    System.out.println("children_slave: " + children_slave.size());
                     if(children_slave.size() == 0)
                         deleteAll("/region" + regionID, client);
                 }
             }catch (Exception e){
+                e.printStackTrace();
                 logger.warn("Error: Region Server can't delete zkserver info");
             }
             //2. 关闭client

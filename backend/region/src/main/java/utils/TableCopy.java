@@ -43,13 +43,15 @@ public class TableCopy {
             targetStmt_Create.executeUpdate();
 
             int columns = rsmeta.getColumnCount();
+            PreparedStatement targetStmt_Insert = targetConnection.prepareStatement(generateInsertStatment(rsmeta));
+
             while(rs.next()){
-                PreparedStatement targetStmt_Insert = targetConnection.prepareStatement(generateInsertStatment(rsmeta));
                 for(int i = 1; i <= columns; i++){
                     targetStmt_Insert.setObject(i, rs.getObject(i));
                 }
-                targetStmt_Insert.executeUpdate();
+                targetStmt_Insert.addBatch();
             }
+            targetStmt_Insert.executeBatch();
         }catch (Exception e){
             if(e.getMessage().contains("already exists")) {
                 logger.info("Table " + targetTable + " already exists");
@@ -82,6 +84,12 @@ public class TableCopy {
             }
         }
         sb.append(")");
+        return sb.toString();
+    }
+
+    public String generateBatchInsertStatment(ResultSetMetaData metaData) throws SQLException {
+        StringBuilder sb = new StringBuilder();
+        sb.append("INSERT INTO ").append(targetTable).append(" VALUES ");
         return sb.toString();
     }
 }
