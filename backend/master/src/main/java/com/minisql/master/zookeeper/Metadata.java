@@ -55,11 +55,6 @@ public class Metadata {
             this.master = "";
         }
 
-        @Deprecated
-        synchronized public void incrementVisitCount() {
-            this.visitCount++;
-        }
-
         synchronized public void setZeroVisitCount() {
             this.visitCount = 0;
         }
@@ -177,6 +172,27 @@ public class Metadata {
         synchronized public Boolean isOnline() {
             return !master.isEmpty();
         }
+
+        synchronized public Boolean isWritable() {
+            return isOnline() && !isLocked();
+        }
+
+        volatile private Boolean lock = false;
+
+        synchronized public void acquireLock() {
+            logger.info("Locking region{}", regionId);
+            lock = true;
+        }
+
+        synchronized public Boolean isLocked() {
+            return lock;
+        }
+
+        synchronized public void releaseLock() {
+            logger.info("Releasing region{}", regionId);
+            lock = false;
+        }
+
     }
 
     private static Metadata metadata;
@@ -215,14 +231,14 @@ public class Metadata {
      * @return 返回真值
      */
     public Boolean hasWritable() {
-        for (var i : regions) {
-            if (i.isOnline()) {
+        for (var region : regions) {
+            if (region.isWritable()) {
                 return true;
             } else {
-                logger.info("Region with master {} is not writable (not online)", i.master);
+                logger.info("Region{} is not writable (not online) or currently being locked.", region.regionId);
             }
         }
-        logger.warn("No writable table exists");
+        logger.warn("No writable region exists");
         return false;
     }
 
@@ -250,18 +266,16 @@ public class Metadata {
             case DROP_TABLE:
             case UPDATE_TABLE:
                 for (var region : regions) {
-                    if (region.hasTable(tableName)) {
+                    if (region.hasTable(tableName) && region.isWritable()) {
                         hostName.add(region.getMaster()); // 轮询region内的服务器来处理查询
-                        region.incrementVisitCount();
                     }
                 }
                 break;
             case QUERY_TABLE:
                 // 返回存在被查询的表所在的所有Regions' slaves
                 for (var region : regions) {
-                    if (region.hasTable(tableName)) {
+                    if (region.isOnline() && region.hasTable(tableName)) {
                         hostName.add(region.pickHandleSlave()); // 轮询region内的服务器来处理查询
-
                     }
                 }
                 break;
@@ -270,19 +284,16 @@ public class Metadata {
                 int minNTables = Integer.MAX_VALUE;
                 RegionMetadata minRegion = null;
                 for (var region : regions) {
-                    if (region.isOnline()) {
+                    if (!region.hasTable(tableName) && region.isWritable()) {
                         int nTables = region.getTables().size();
                         if (nTables < minNTables) {
                             minNTables = nTables;
                             minRegion = region;
                         }
-                    } else {
-                        logger.warn("Region with master {} is not writable", region.master);
                     }
                 }
                 if (minRegion != null) {
                     hostName.add(minRegion.getMaster()); // 由master去下达指令给region的所有服务器
-                    minRegion.incrementVisitCount();
                 }
                 break;
 
@@ -290,8 +301,11 @@ public class Metadata {
                 // 返回负责处理insert的Region Master
                 for (var region : regions) {
                     if (region.pkValueBelongThisRegion(tableName, pkValue)) {
-                        hostName.add(region.getMaster());
-                        region.incrementVisitCount();
+                        if (region.isWritable()) {
+                            hostName.add(region.getMaster());
+                        } else {
+                            logger.warn("Region{} is not writable", region.regionId);
+                        }
                     } else {
                         logger.warn("{} in table {} doesn't belong to region with master {}", pkValue, tableName, region.master);
                     }
@@ -300,7 +314,6 @@ public class Metadata {
 
             default:
                 logger.warn("No server being picked");
-
         }
 
         return hostName;

@@ -53,7 +53,7 @@ public class MasterApplication {
     public RestTemplate restTemplate() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(1000); // 连接超时时间（单位：毫秒）
-        factory.setReadTimeout(1000);    // 读取超时时间（单位：毫秒）
+        factory.setReadTimeout(10000);    // 读取超时时间（单位：毫秒）
 
         return new RestTemplate(factory);
     }
@@ -61,7 +61,6 @@ public class MasterApplication {
     @PostConstruct
     private void init() {
         try {
-            logger.info("zkServers config file: {}", configDir);
             PersistenceHandler.loadConfigurations(configDir);
             try {
                 Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
@@ -118,29 +117,34 @@ public class MasterApplication {
         String result = "";
         try {
             result = rt.postForObject(requestUrl, "", String.class);
+            logger.info("Response of {} : {}", requestUrl, result);
         } catch (Exception e) {
             logger.error(e.getMessage());
         }
-        logger.info("Response set zero: {}", result);
     }
 
     /**
-     * 热点检测，热点需要符合以下几个条件
-     * 1. 可写Region的数量>=2
-     * 2. 被访问最多的Region的访问次数是最少的Region的次数的两倍以上
-     * 3.
-     * 4.
+     * 热点检测：
+     * 1. 利用Metadata，遍历所有Region的元数据
+     * 2. 如果Region是上线的（代表可写）
+     * 3. 从中选取被访问次数最多和最少的Region
+     * 4. 如果上线Region>=2且MaxVisitedRegion的次数>=2*MinVisitedRegion的次数且MaxVisitedRegion的次数>MAX_HOTPOINT_THRESHOLD且MinVisitedRegion的次数>MIN_HOTPOINT_THRESHOLD
+     * 5. 执行数据迁移，将MaxVisitedRegion一半的数据迁移至MinVisitedRegion
+     * 6. 重置所有Region的访问次数
      */
     @Scheduled(fixedRate = 10000)
     public void hotPointChecker() {
         Metadata metadata = Metadata.getInstance();
         if (metadata.getIsMaster()) {
-            logger.info("Checking hot point");
+            logger.info("Checking hot point...");
             int min = Integer.MAX_VALUE, max = Integer.MIN_VALUE, writableRegionCount = 0;
             Metadata.RegionMetadata maxRegion = null, minRegion = null;
             for (var region : metadata.getRegions()) {
                 if (region.isOnline()) {
                     int regionVisitCount = requestVisitCount(region.getMaster());
+                    for (var regionSlave : region.getSlaves()) {
+                        regionVisitCount += requestVisitCount(regionSlave);
+                    }
                     if (regionVisitCount > max) {
                         writableRegionCount++;
                         max = regionVisitCount;
@@ -164,29 +168,42 @@ public class MasterApplication {
                         minRegion = region;
                     }
                 }
-                logger.info("Max visit count is {}, min visit count is {}", max, min);
             } else {
-                logger.info("No max region found, can't process hot point synchronization");
+                logger.info("No max region found");
             }
 
             // 符合热点迁移条件，将Max Region中的半数数据表迁移至Min Region
             if ((maxRegion != null && minRegion != null) && (writableRegionCount >= 2 && max > 2 * min && max > MAX_HOTPOINT_THRESHOLD && min > MIN_HOTPOINT_THRESHOLD)) {
-                logger.info("Hot point synchronisation is processing");
+                logger.info("Hot point found, synchronising...");
+                logger.info("Max region is {} with visit count {}, min region is {} with visit count {}", maxRegion.getRegionId(), max, minRegion.getRegionId(), min);
                 Set<Metadata.RegionMetadata.Table> tablesToMove = maxRegion.getTables();
                 String
                         maxRegionHostName = maxRegion.getMaster().replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT),
                         minRegionHostName = minRegion.getMaster().replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT);
                 if (!tablesToMove.isEmpty()) {
+                    // 数据迁移的时候对Max Region和Min Region加锁，防止其他操作干扰
+                    maxRegion.acquireLock();
+                    minRegion.acquireLock();
                     requestSyncTables(maxRegionHostName, minRegionHostName, tablesToMove, minRegion.getRegionId());
+                    minRegion.releaseLock();
+                    maxRegion.releaseLock();
                 }
-                logger.info("Hot point synchronisation completed, all regions visit count is reset");
+                logger.info("Hot point synchronisation completed");
             } else {
                 logger.info("No hot point synchronisation is required");
             }
             for (var region : metadata.getRegions()) {
-                requestSetZeroVisitCount(region.getMaster());
-                region.setZeroVisitCount();
+                if (region.isOnline()) {
+                    requestSetZeroVisitCount(region.getMaster());
+                    for (var regionSlave : region.getSlaves()) {
+                        requestSetZeroVisitCount(regionSlave);
+                    }
+                    region.setZeroVisitCount();
+                } else {
+                    logger.info("Region{} is not online, no need to reset visit count", region.getRegionId());
+                }
             }
+            logger.info("Visit count reset completed");
         } else {
             logger.info("I'm not Master-Master, no responsibility for hot point synchronisation");
         }
