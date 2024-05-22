@@ -1,6 +1,6 @@
-package com.example.master.zookeeper;
+package com.minisql.master.zookeeper;
 
-import com.example.master.utils.Configs;
+import com.minisql.master.utils.Configs;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -55,6 +55,7 @@ public class ZkClient {
     private void initMetadata() {
         for (int i = 0; i < Configs.MAX_REGION; i++) {
             Metadata.RegionMetadata regionMetadata = new Metadata.RegionMetadata();
+            regionMetadata.setRegionId(i);
             zkListener = new ZkListener(zkClient, i, regionMetadata);
             zkListener.listenMaster(); // Listen to master ZNode
             zkListener.listenTables(); // Listen to tables ZNode and its child nodes

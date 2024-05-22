@@ -1,4 +1,4 @@
-package com.example.master.zookeeper;
+package com.minisql.master.zookeeper;
 
 import lombok.Getter;
 

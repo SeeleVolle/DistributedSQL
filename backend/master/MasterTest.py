@@ -5,7 +5,7 @@ import logging
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-masterHost = "localhost:8085"
+masterHost = "localhost:8080"
 
 def testCreateTable():
     testCases = ["t1", "t2"]

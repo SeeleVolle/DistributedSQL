@@ -1,4 +1,4 @@
-package com.example.master.utils;
+package com.minisql.master.utils;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
@@ -23,7 +23,8 @@ public class PersistenceHandler {
             byte[] data = Files.readAllBytes(new File(file).toPath());
             JSONObject jsonObject = JSON.parseObject(new String(data));
             Configs.ZK_SERVERS = jsonObject.getList("ZK_SERVERS", String.class);
-            Configs.HOTPOINT_THRESHOLD = jsonObject.getInteger("HOTPOINT_THRESHOLD");
+            Configs.MAX_HOTPOINT_THRESHOLD = jsonObject.getInteger("MAX_HOTPOINT_THRESHOLD");
+            Configs.MIN_HOTPOINT_THRESHOLD = jsonObject.getInteger("MIN_HOTPOINT_THRESHOLD");
             Configs.MAX_REGION = jsonObject.getInteger("MAX_REGION");
             Configs.MAX_HASH = jsonObject.getInteger("MAX_HASH");
             Configs.REGION_SERVER_PORT = jsonObject.getInteger("REGION_SERVER_PORT");

@@ -1,18 +1,19 @@
-package com.example.master.api;
+package com.minisql.master.api;
 
 import com.alibaba.fastjson2.JSONObject;
-import com.example.master.zookeeper.Metadata;
+import com.minisql.master.zookeeper.Metadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-import static com.example.master.api.StatusCode.*;
+import static com.minisql.master.api.StatusCode.*;
 
 /**
  * 这是一个接受来自Client请求的Controller
  */
+@CrossOrigin(origins = "*")
 @RestController
 public class ClientController {
     private static final Logger logger = LoggerFactory.getLogger(ClientController.class);
@@ -51,7 +52,6 @@ public class ClientController {
     }
 
     /**
-     *
      * @param tableName 要查询的表名
      * @return 返回负责处理查询的slave(s)
      */
@@ -68,9 +68,8 @@ public class ClientController {
     }
 
     /**
-     *
      * @param tableName 要插入到的表
-     * @param pkValue 主键值
+     * @param pkValue   主键值
      * @return 返回负责处理插入表的master
      */
     @PostMapping("/insert")
@@ -86,7 +85,6 @@ public class ClientController {
     }
 
     /**
-     *
      * @param tableName 要修改的表名
      * @return 返回负责处理修改表的master(s)
      */
@@ -103,7 +101,6 @@ public class ClientController {
     }
 
     /**
-     *
      * @param tableName 要删除的记录所对应的表
      * @return 返回负责删除记录的master(s)
      */
@@ -120,7 +117,6 @@ public class ClientController {
     }
 
     /**
-     *
      * @param tableName 要删除的表名
      * @return 返回负责处理删表的master(s)
      */
@@ -137,7 +133,6 @@ public class ClientController {
     }
 
     /**
-     *
      * @return 返回整个数据库当前状态的元数据
      */
     @PostMapping("/meta_info")

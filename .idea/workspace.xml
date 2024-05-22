@@ -5,11 +5,30 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="c8ff1790-e3ac-42d9-9a5b-04f4cf597072" name="更改" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/region/out/artifacts/RegionServer/region.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/MasterTest.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/MasterTest.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/build.gradle" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/configurations.json" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/configurations.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/docs/模块设计与测试报告.md" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/docs/模块设计与测试报告.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/MasterApplication.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/MasterApplication.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/api/ApiResult.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/api/ApiResult.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/api/ClientController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/api/ClientController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/api/StatusCode.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/api/StatusCode.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/utils/Configs.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/utils/Configs.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/utils/PersistenceHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/utils/PersistenceHandler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/zookeeper/Metadata.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/zookeeper/Metadata.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/zookeeper/Paths.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/zookeeper/Paths.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/zookeeper/ZkClient.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/zookeeper/ZkClient.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/zookeeper/ZkListener.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/zookeeper/ZkListener.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/resources/application.properties" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/master/src/test/java/org/example/master/MasterApplicationTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/test/java/org/example/master/MasterApplicationTests.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/region/src/main/java/region/RegionApplication.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/region/src/main/java/region/RegionApplication.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/region/src/main/java/utils/Zookeeper.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/region/src/main/java/utils/Zookeeper.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/region/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/region/src/main/resources/application.properties" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/components/MainContent.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/MainContent.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/components/StatusBar.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/StatusBar.js" afterDir="false" />
     </list>
@@ -24,28 +43,28 @@
   <component name="MarkdownSettingsMigration">
     <option name="stateVersion" value="1" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 7
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 7
+}</component>
   <component name="ProjectId" id="2gj3aoAxoUpCYzsvqtiU9RQBY58" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.OpenProjectViewOnStart": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "WebServerToolWindowFactoryState": "false",
-    "last_opened_file_path": "D:/Prifiles/Courses/ThirdSem_Spring/Distributed/DistributedSQL",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/Prifiles/Courses/ThirdSem_Spring/Distributed/DistributedSQL&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RunManager">
     <configuration name="start" type="js.build_tools.npm" nameIsGenerated="true">
       <package-json value="$PROJECT_DIR$/frontend/package.json" />
@@ -67,6 +86,7 @@
       <option name="presentableId" value="Default" />
       <updated>1716197225810</updated>
       <workItem from="1716197226917" duration="2562000" />
+      <workItem from="1716341724421" duration="69000" />
     </task>
     <servers />
   </component>
