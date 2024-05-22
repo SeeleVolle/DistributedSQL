@@ -52,7 +52,10 @@ public class CheckSum extends CRC32 {
     }
 
     public long getCRC4Result(List<Object[]> datalist) throws SQLException{
-        int columns =  datalist.get(0).length;
+        if(datalist.size() == 0){
+            return 0;
+        }
+        int columns = datalist.get(0).length;
         long crc = 0;
         for(int i = 0; i < datalist.size(); i++){
             for(int j = 0; j < columns; j++){
@@ -63,6 +66,10 @@ public class CheckSum extends CRC32 {
     }
 
     public long getCRC4ResultSet(ResultSet rs) throws SQLException{
+        if(rs == null){
+            return 0;
+        }
+
         int columns = rs.getMetaData().getColumnCount();
         long crc = 0;
         while(rs.next()){

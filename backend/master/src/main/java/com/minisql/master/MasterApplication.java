@@ -179,13 +179,13 @@ public class MasterApplication {
                 if (!tablesToMove.isEmpty()) {
                     requestSyncTables(maxRegionHostName, minRegionHostName, tablesToMove, minRegion.getRegionId());
                 }
-                for (var region : metadata.getRegions()) {
-                    requestSetZeroVisitCount(region.getMaster());
-                    region.setZeroVisitCount();
-                }
                 logger.info("Hot point synchronisation completed, all regions visit count is reset");
             } else {
                 logger.info("No hot point synchronisation is required");
+            }
+            for (var region : metadata.getRegions()) {
+                requestSetZeroVisitCount(region.getMaster());
+                region.setZeroVisitCount();
             }
         } else {
             logger.info("I'm not Master-Master, no responsibility for hot point synchronisation");

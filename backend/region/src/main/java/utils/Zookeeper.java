@@ -363,12 +363,14 @@ public class Zookeeper {
                     else
                         client.delete().forPath("/region" + regionID + "/slaves/slave" + serverID);
                 }
-                List<String> children_slave = client.getChildren().forPath("/region" + regionID + "/slaves");
-                if(children_slave.size() == 0 && client.checkExists().forPath("/region" + regionID + "/master") == null && client.checkExists().forPath("/region" + regionID) != null){
-                    deleteAll("/region" + regionID, client);
+                if(client.checkExists().forPath("/region" + regionID + "/master") == null && client.checkExists().forPath("/region" + regionID) != null &&
+                   client.checkExists().forPath("/region" + regionID + "/slaves") != null){
+                    List<String> children_slave = client.getChildren().forPath("/region" + regionID + "/slaves");
+                    if(children_slave.size() == 0)
+                        deleteAll("/region" + regionID, client);
                 }
             }catch (Exception e){
-                logger.error("Error: Region Server can't delete zkserver info");
+                logger.warn("Error: Region Server can't delete zkserver info");
             }
             //2. 关闭client
             client.close();

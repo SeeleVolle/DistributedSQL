@@ -6,29 +6,9 @@
   <component name="ChangeListManager">
     <list default="true" id="c8ff1790-e3ac-42d9-9a5b-04f4cf597072" name="更改" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/MasterTest.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/MasterTest.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/build.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/configurations.json" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/configurations.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/docs/模块设计与测试报告.md" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/docs/模块设计与测试报告.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/MasterApplication.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/MasterApplication.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/api/ApiResult.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/api/ApiResult.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/api/ClientController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/api/ClientController.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/api/StatusCode.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/api/StatusCode.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/utils/Configs.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/utils/Configs.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/utils/PersistenceHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/utils/PersistenceHandler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/zookeeper/Metadata.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/zookeeper/Metadata.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/zookeeper/Paths.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/zookeeper/Paths.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/zookeeper/ZkClient.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/zookeeper/ZkClient.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/src/main/java/com/example/master/zookeeper/ZkListener.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/java/com/minisql/master/zookeeper/ZkListener.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/main/resources/application.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/master/src/test/java/org/example/master/MasterApplicationTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/master/src/test/java/org/example/master/MasterApplicationTests.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/region/src/main/java/region/RegionApplication.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/region/src/main/java/region/RegionApplication.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/region/out/artifacts/RegionServer/master.jar" beforeDir="false" afterPath="$PROJECT_DIR$/backend/region/out/artifacts/RegionServer/master.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/region/src/main/java/utils/CheckSum.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/region/src/main/java/utils/CheckSum.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/region/src/main/java/utils/Zookeeper.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/region/src/main/java/utils/Zookeeper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/region/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/region/src/main/resources/application.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package-lock.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/components/MainContent.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/MainContent.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/components/StatusBar.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/StatusBar.js" afterDir="false" />
     </list>
@@ -86,7 +66,7 @@
       <option name="presentableId" value="Default" />
       <updated>1716197225810</updated>
       <workItem from="1716197226917" duration="2562000" />
-      <workItem from="1716341724421" duration="69000" />
+      <workItem from="1716341724421" duration="975000" />
     </task>
     <servers />
   </component>

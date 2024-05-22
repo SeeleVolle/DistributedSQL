@@ -5,7 +5,7 @@ import {CheckCircleOutlined, CloseCircleOutlined, ThunderboltOutlined} from '@an
 
 const { TextArea } = Input;
 const MasterNode = [
-    'http://127.0.0.1:8080'
+    'http://172.25.2.229:8080'
     // 'http://10.194.223.161:8081',
     // 'http://10.194.223.161:8082',
     // 'http://10.194.223.161:8083',
