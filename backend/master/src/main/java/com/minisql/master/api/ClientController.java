@@ -2,6 +2,7 @@ package com.minisql.master.api;
 
 import com.alibaba.fastjson2.JSONObject;
 import com.minisql.master.zookeeper.Metadata;
+import com.minisql.master.zookeeper.ZkClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
@@ -138,8 +139,11 @@ public class ClientController {
     @PostMapping("/meta_info")
     public ApiResult metaInfo() {
         logger.info("Getting all regions' metadata information");
+        ZkClient zkClient = ZkClient.getInstance();
         JSONObject data = new JSONObject();
         data.put("meta", metadata);
+        data.put("masterUuid", Metadata.masterUuid);
+        data.put("iAmMasterMaster", zkClient.iAmMasterMaster());
         return new ApiResult().ok().data(data);
     }
 }

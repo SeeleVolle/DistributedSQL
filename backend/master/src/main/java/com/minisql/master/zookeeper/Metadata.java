@@ -4,10 +4,7 @@ import lombok.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.Vector;
+import java.util.*;
 
 import static com.minisql.master.utils.Configs.MAX_HASH;
 
@@ -210,7 +207,7 @@ public class Metadata {
 
     volatile private List<RegionMetadata> regions;
 
-    private String masterUuid;
+    public static final String masterUuid = UUID.randomUUID().toString();
 
     private Metadata() {
         this.regions = new Vector<>();

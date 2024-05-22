@@ -90,7 +90,7 @@ public class MasterApplication {
         logger.info("Successfully cleaned up, disconnected from Zookeeper");
     }
 
-    private Integer requestVisitCount(String hostName) {
+    synchronized private Integer requestVisitCount(String hostName) {
         RestTemplate rt = restTemplate();
 
         String requestUrl = Configs.REGION_SERVER_HTTPS + "://" + hostName.replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT) + "/visiting";
@@ -98,10 +98,10 @@ public class MasterApplication {
         String result = "";
         try {
             result = rt.postForObject(requestUrl, "", String.class);
+            logger.info("Response visit count: {}", result);
         } catch (Exception e) {
             logger.error(e.getMessage());
         }
-        logger.info("Response visit count: {}", result);
         JSONObject jsonObject = JSON.parseObject(result);
         if (jsonObject != null) {
             return jsonObject.getIntValue("visitCount");
@@ -109,7 +109,7 @@ public class MasterApplication {
         return 0;
     }
 
-    private void requestSetZeroVisitCount(String hostName) {
+    synchronized private void requestSetZeroVisitCount(String hostName) {
         RestTemplate rt = restTemplate();
         String requestUrl = Configs.REGION_SERVER_HTTPS + "://" + hostName.replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT) + "/visitingClear";
         logger.info("Request clear visit count URL is {}", requestUrl);
@@ -226,7 +226,7 @@ public class MasterApplication {
         private int originalEnd;
     }
 
-    public void requestSyncTables(String maxRegion, String minRegion, Set<Metadata.RegionMetadata.Table> tables, int targetRegionId) {
+    synchronized public void requestSyncTables(String maxRegion, String minRegion, Set<Metadata.RegionMetadata.Table> tables, int targetRegionId) {
         logger.info("Need to move from {} to {} on region {}", maxRegion, minRegion, targetRegionId);
         List<Table> tablesToMove = new Vector<>();
         for (var table : tables) {

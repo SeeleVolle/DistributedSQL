@@ -72,7 +72,6 @@ public class ZkClient {
             metadata.getRegions().add(regionMetadata);
         }
         zkListener.listenMasterMaster();
-        metadata.setMasterUuid(UUID.randomUUID().toString());
         try {
             if (zkClient.checkExists().forPath("/master/master") == null) {
                 initMasterMaster();
@@ -85,7 +84,7 @@ public class ZkClient {
     public Boolean iAmMasterMaster() {
         try {
             String uuid  = new String(zkClient.getData().forPath("/master/master"));
-            return metadata.getMasterUuid().equals(uuid);
+            return Metadata.masterUuid.equals(uuid);
         } catch (Exception e) {
             logger.error(e.getMessage());
             return false;
@@ -94,12 +93,12 @@ public class ZkClient {
 
     public void initMasterMaster() {
         logger.info("I am trying to become Master-Master");
-        logger.info("Master ID: {}", metadata.getMasterUuid());
+        logger.info("Master ID: {}", Metadata.masterUuid);
         try {
             zkClient.create().creatingParentsIfNeeded().withMode(
                     CreateMode.EPHEMERAL).forPath(
                     "/master/master",
-                    metadata.getMasterUuid().getBytes()
+                    Metadata.masterUuid.getBytes()
             );
         } catch (Exception e) {
             logger.error(e.getMessage());
