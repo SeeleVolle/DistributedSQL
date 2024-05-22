@@ -204,7 +204,7 @@ public class Metadata {
         return metadata;
     }
 
-    private List<RegionMetadata> regions;
+    volatile private List<RegionMetadata> regions;
     private Boolean isMaster;
 
     private Metadata() {

@@ -53,8 +53,7 @@ public class MasterApplication {
     public RestTemplate restTemplate() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(1000); // 连接超时时间（单位：毫秒）
-        factory.setReadTimeout(10000);    // 读取超时时间（单位：毫秒）
-
+        factory.setReadTimeout(5000);    // 读取超时时间（单位：毫秒）
         return new RestTemplate(factory);
     }
 
@@ -264,5 +263,4 @@ public class MasterApplication {
             logger.error(e.getMessage());
         }
     }
-
 }

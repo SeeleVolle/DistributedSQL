@@ -99,6 +99,7 @@ public class ZkListener {
                         regionMetadata.setMaster(master);
                         logger.info("New master {} at {}.", master, path);
                     } else {
+                        regionMetadata.setMaster("");
                         logger.warn("Master data at {} is missing.", path);
                     }
                 } catch (Exception e) {
