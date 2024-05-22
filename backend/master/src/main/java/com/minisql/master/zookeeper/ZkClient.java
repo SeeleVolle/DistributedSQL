@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * ZkClient is a singleton class that manages the connection to Zookeeper and initializes metadata
@@ -20,7 +21,6 @@ public class ZkClient {
 
     private ZkClient() {
         zkServers = Configs.ZK_SERVERS;
-        metadata = Metadata.getInstance();
     }
 
     private static ZkClient instance;
@@ -34,13 +34,21 @@ public class ZkClient {
 
     // Zookeeper 服务器的地址列表
     private final List<String> zkServers;
-    private final Metadata metadata;
+    private Metadata metadata;
     private CuratorFramework zkClient;
     private ZkListener zkListener;
 
     public void init() {
         connect();
-        initMetadata();
+        zkClient.getConnectionStateListenable().addListener((client, newState) -> {
+            if (newState.isConnected()) {
+                logger.info("Connected to Zookeeper");
+                initMetadata();
+            } else {
+                logger.warn("Disconnected from Zookeeper");
+                Metadata.clear();
+            }
+        });
     }
 
     private void connect() {
@@ -53,6 +61,7 @@ public class ZkClient {
      * Initialize metadata for each region and listen to changes in Zookeeper
      */
     private void initMetadata() {
+        metadata = Metadata.getInstance();
         for (int i = 0; i < Configs.MAX_REGION; i++) {
             Metadata.RegionMetadata regionMetadata = new Metadata.RegionMetadata();
             regionMetadata.setRegionId(i);
@@ -63,42 +72,40 @@ public class ZkClient {
             metadata.getRegions().add(regionMetadata);
         }
         zkListener.listenMasterMaster();
+        metadata.setMasterUuid(UUID.randomUUID().toString());
         try {
-            // TODO
             if (zkClient.checkExists().forPath("/master/master") == null) {
-                // If no master-master, this master will be master-master
                 initMasterMaster();
-            } else {
-                // Or else, become master-slave.
-                initMasterSlave();
             }
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            logger.error(e.getMessage());
         }
     }
 
     public Boolean iAmMasterMaster() {
-        return metadata.getIsMaster();
+        try {
+            String uuid  = new String(zkClient.getData().forPath("/master/master"));
+            return metadata.getMasterUuid().equals(uuid);
+        } catch (Exception e) {
+            logger.error(e.getMessage());
+            return false;
+        }
     }
 
     public void initMasterMaster() {
         logger.info("I am trying to become Master-Master");
+        logger.info("Master ID: {}", metadata.getMasterUuid());
         try {
-            metadata.setIsMaster(true);
-            zkClient.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL).forPath("/master/master");
+            zkClient.create().creatingParentsIfNeeded().withMode(
+                    CreateMode.EPHEMERAL).forPath(
+                    "/master/master",
+                    metadata.getMasterUuid().getBytes()
+            );
         } catch (Exception e) {
             logger.error(e.getMessage());
             logger.warn("Failed to become master-master, rolling back");
-            metadata.setIsMaster(false);
         }
-
     }
-
-    public void initMasterSlave() {
-        logger.info("I am becoming Master-Slave");
-        metadata.setIsMaster(false);
-    }
-
 
     /**
      * 创建ZNode

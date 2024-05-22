@@ -204,12 +204,16 @@ public class Metadata {
         return metadata;
     }
 
+    public static void clear() {
+        metadata = null;
+    }
+
     volatile private List<RegionMetadata> regions;
-    private Boolean isMaster;
+
+    private String masterUuid;
 
     private Metadata() {
         this.regions = new Vector<>();
-        this.isMaster = false;
     }
 
     /**

@@ -134,7 +134,7 @@ public class MasterApplication {
     @Scheduled(fixedRate = 10000)
     public void hotPointChecker() {
         Metadata metadata = Metadata.getInstance();
-        if (metadata.getIsMaster()) {
+        if (zkClient.iAmMasterMaster()) {
             logger.info("Checking hot point...");
             int min = Integer.MAX_VALUE, max = Integer.MIN_VALUE, writableRegionCount = 0;
             Metadata.RegionMetadata maxRegion = null, minRegion = null;
