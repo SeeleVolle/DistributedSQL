@@ -1,13 +1,43 @@
 version: '3.1'
 
 services:
-  master1:
+  region1:
+    container_name: region1
     build:
       context: .
       dockerfile: Dockerfile
+    image: region
     volumes:
       - ./configurations.json:/region/configurations.json
-    environment:
-      ZK_SERVERS: /master/configurations.json
     ports:
-      - "8081:8080"
+      - "9091:9090"
+  db1:
+    container_name: region1_db
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: db
+      MYSQL_USER: huang
+      MYSQL_PASSWORD: 123456
+      MYSQL_ROOT_PASSWORD: password
+
+  region2:
+    container_name: region2
+    image: region
+    volumes:
+      - ./configurations.json:/region/configurations.json
+    ports:
+      - "9092:9090"
+  region3:
+    container_name: region3
+    image: region
+    volumes:
+      - ./configurations.json:/region/configurations.json
+    ports:
+      - "9093:9090"
+  region4:
+    container_name: region4
+    image: region
+    volumes:
+      - ./configurations.json:/region/configurations.json
+    ports:
+      - "9094:9090"

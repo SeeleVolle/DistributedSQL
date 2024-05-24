@@ -250,7 +250,6 @@ public class Metadata {
         INSERT_TABLE,
         UPDATE_TABLE,
         DELETE_TABLE,
-        WRITE_TABLE
     }
 
     /**

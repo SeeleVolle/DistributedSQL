@@ -3,7 +3,7 @@ LABEL authors="squarehuang"
 
 WORKDIR /region
 
-COPY src/region.jar /region/region.jar
+COPY src/region-0.0.1-SNAPSHOT.jar /region/region.jar
 
 EXPOSE 9090
 

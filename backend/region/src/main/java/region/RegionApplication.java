@@ -343,7 +343,7 @@ public class RegionApplication {
                     long masterCRCResult = Long.valueOf(params.getCrcResult());
                     if(myCRCResult != masterCRCResult){
                         String masterAddr = zookeeper.getMasterAddr();
-                        zookeeper.CopyFromRem   oteTable(masterAddr, params.getTableName());
+                        zookeeper.CopyFromRemoteTable(masterAddr, params.getTableName());
                     }
                 }
             }catch (Exception e){
