@@ -41,6 +41,7 @@ public class RegionApplication {
 
     @Value("${region.config}")
     private String configDir;
+    private int MAX_HASH = 65536;
 
     private String zkServerAddr;
     private int port;
@@ -342,7 +343,7 @@ public class RegionApplication {
                     long masterCRCResult = Long.valueOf(params.getCrcResult());
                     if(myCRCResult != masterCRCResult){
                         String masterAddr = zookeeper.getMasterAddr();
-                        zookeeper.CopyFromRemoteTable(masterAddr, params.getTableName());
+                        zookeeper.CopyFromRem   oteTable(masterAddr, params.getTableName());
                     }
                 }
             }catch (Exception e){
@@ -365,32 +366,21 @@ public class RegionApplication {
         return res;
     }
 
-    public void executeSQLUpdated(String sql){
-        try{
+    public void executeSQLUpdated(String sql) throws SQLException {
             Connection conn = databaseConnection.getConnection();
             logger.info("SQL Executed: " + sql);
             //SQL注入风险，不管了。。
             PreparedStatement ps = conn.prepareStatement(sql);
             ps.executeUpdate();
-        }catch (Exception e){
-            e.printStackTrace();
-            logger.error("Error: Region Server execute sql failed.");
-        }
     }
 
-    public ResultSet executeSQLQuery(String sql){
-        try{
-            Connection conn = databaseConnection.getConnection();
-            logger.info("SQL Executed: " + sql);
-            //SQL注入风险，不管了。。
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ResultSet rs = ps.executeQuery();
-            return rs;
-        }catch (Exception e){
-            e.printStackTrace();
-            logger.error("Error: Region Server execute sql failed.");
-        }
-        return null;
+    public ResultSet executeSQLQuery(String sql) throws SQLException{
+        Connection conn = databaseConnection.getConnection();
+        logger.info("SQL Executed: " + sql);
+        //SQL注入风险，不管了。。
+        PreparedStatement ps = conn.prepareStatement(sql);
+        ResultSet rs = ps.executeQuery();
+        return rs;
     }
 
     public void forward(String sql,  String type, String tableName, long myCRCResult){
@@ -420,6 +410,7 @@ public class RegionApplication {
 
     public void forward(List<String>sqlList,  String type, String tableName, long myCRCResult){
         List<String> slavesAddrs = zookeeper.getSlaves();
+//        slavesAddrs.add(zookeeper.getMasterAddr());
         for(String slaveAddr: slavesAddrs) {
             String slaveurl = "http://" + slaveAddr.substring(0, slaveAddr.indexOf(":")) + ":9090/" + type;
             RestTemplate restTemplate = new RestTemplate();
@@ -487,9 +478,9 @@ public class RegionApplication {
 
     public boolean vote(String sql, String tableName, long myCRCResult) throws SQLException {
         List<String> slavesAddrs = zookeeper.getSlaves();
-        for(String slaveAddr: slavesAddrs) {
-            logger.info("Slave: " + slaveAddr);
-        }
+//        for(String slaveAddr: slavesAddrs) {
+//            logger.info("Slave: " + slaveAddr);
+//        }
         int supports_num = 1;
         //转发请求并获取结果
         for(String slaveAddr: slavesAddrs) {
@@ -522,9 +513,9 @@ public class RegionApplication {
     @RequestMapping("/votequery")
     public JSONObject  votequery(@RequestBody SQLParams params){
         JSONObject res = new JSONObject();
-        ResultSet rs = executeSQLQuery(params.getSql());
-        CheckSum checkSum = new CheckSum(databaseConnection);
         try{
+            ResultSet rs = executeSQLQuery(params.getSql());
+            CheckSum checkSum = new CheckSum(databaseConnection);
             res.put("CRCResult", checkSum.getCRC4ResultSet(rs));
         }catch(Exception e){
             res.put("status",  "500");
@@ -578,13 +569,15 @@ public class RegionApplication {
                 PreparedStatement column_ps = databaseConnection.getConnection().prepareStatement("SELECT * FROM " + tableName);
                 ResultSetMetaData column_metaData = column_ps.executeQuery().getMetaData();
                 PreparedStatement target_ps_insert = target_conn.prepareStatement(tableCopy.generateInsertStatment(column_metaData));
-                StringBuilder deleteSQL =  new StringBuilder("DELETE FROM " + tableName + " WHERE " + primaryName + " IN ");
+                StringBuilder deleteSQL =  new StringBuilder("DELETE FROM " + tableName + " WHERE " + primaryName + " IN (");
+                boolean deleteFlag = false;
                 ArrayList<String> insertSQLs = new ArrayList<String>();
                 //遍历主键
                 while(primary_rs.next()){
                     String primaryValue = primary_rs.getString(1);
-                    int hash = primaryValue.hashCode();
+                    int hash = primaryValue.hashCode() % MAX_HASH;
                     if(hash >= start && hash < end){
+                        deleteFlag = true;
                         deleteSQL.append("'" + primaryValue + "',");
                         //在target上插入, 需要调用相应的接口
                         PreparedStatement source_row_sql = databaseConnection.getConnection().prepareStatement("SELECT * FROM " + tableName + " WHERE " + primaryName + " = " + primaryValue);
@@ -598,21 +591,27 @@ public class RegionApplication {
                             target_ps_insert.addBatch();
                             insertSQLs.add(getSQLString(target_ps_insert));
                         }
-                        forwardToTarget(insertSQLs, "updateBatch", tableName, targetIP);
-                        //在source上删除, 同步删除
-                        PreparedStatement source_ps_delete = databaseConnection.getConnection().prepareStatement(deleteSQL.toString());
-                        source_ps_delete.executeUpdate();
-                        CheckSum checkSum = new CheckSum(databaseConnection);
-                        long myCRCResult = checkSum.getCRC4Table(tableName);
-                        forward(deleteSQL.toString(), "update", tableName, myCRCResult);
                     }
                 }
+
+                forwardToTarget(insertSQLs, "updateBatch", tableName, targetIP);
+                //在source上删除
+                if(deleteFlag){
+                    deleteSQL.deleteCharAt(deleteSQL.length()-1);
+                    deleteSQL.append(")");
+                    PreparedStatement source_ps_delete = databaseConnection.getConnection().prepareStatement(deleteSQL.toString());
+                    source_ps_delete.executeUpdate();
+                    CheckSum checkSum = new CheckSum(databaseConnection);
+                    long myCRCResult = checkSum.getCRC4Table(tableName);
+                    forward(deleteSQL.toString(), "update", tableName, myCRCResult);
+                }
+                System.out.println("Transfer " + insertSQLs.size() + " rows to " + targetIP);
+//                System.out.println("DeleteSQL: " + deleteSQL.toString());
+
                 String target_hash_range = start+","+end;
                 String original_hash_range = table.getOriginalStart() + "," + table.getOriginalEnd();
-                logger.info("target range:" + target_hash_range);
-                logger.info("original range" +  original_hash_range);
-                logger.info("targetID:" + targetRegionID);
-                logger.info("sourceID:" + zookeeper.getRegionID());
+                logger.info("targetID:" + targetRegionID + "  target range:" + target_hash_range);
+                logger.info("sourceID:" + zookeeper.getRegionID() + "  source range:" +  original_hash_range);
                 zookeeper.updateTable(tableName, String.valueOf(zookeeper.getRegionID()), original_hash_range);
                 zookeeper.updateTable(tableName, targetRegionID, target_hash_range);
             }
@@ -627,12 +626,14 @@ public class RegionApplication {
         return res;
     }
 
+
+    //一些奇怪的问题，无法解决，master上执行的SQL语句结果不存在
     @RequestMapping("/updateBatch")
     public JSONObject updateBatchTable(@RequestBody ListSQLParams params){
         logger.info("UpdateBatch is starting...");
         List<String> sqlParamsList = params.getSqlParamsList();
-//        System.out.println(params.getTableName());
-//        System.out.println(params.getSqlParamsList().size());
+
+        logger.info("Updating "+ sqlParamsList.size()+" rows...");
         JSONObject res = new JSONObject();
         //1. 执行SQL语句
         try{
@@ -640,19 +641,29 @@ public class RegionApplication {
             Statement stmt = conn.createStatement();
             for(String sql : sqlParamsList)
                 stmt.addBatch(sql);
-            stmt.executeBatch();
-            if(!zookeeper.isMaster()){
-                CheckSum checkSum = new CheckSum(databaseConnection);
-                long myCRCResult = checkSum.getCRC4Table(params.getTableName());
-                long masterCRCResult = Long.valueOf(params.getCrcResult());
-                if(myCRCResult != masterCRCResult){
-                    String masterAddr = zookeeper.getMasterAddr();
-                    zookeeper.CopyFromRemoteTable(masterAddr, params.getTableName());
+            int[] updateCounts =  stmt.executeBatch();
+            int successCount = 0, errorCount = 0;
+            for (int i = 0; i < updateCounts.length; i++) {
+                if (updateCounts[i] == Statement.SUCCESS_NO_INFO) {
+                    successCount++;
+                } else if (updateCounts[i] >= 0) {
+                    successCount++;
+                } else if (updateCounts[i] == Statement.EXECUTE_FAILED) {
+                    errorCount++;
                 }
             }
+            logger.info("Success: " + successCount + " rows, Error: " + errorCount + " rows.");
+//            if(!zookeeper.isMaster()){
+//                CheckSum checkSum = new CheckSum(databaseConnection);
+//                long myCRCResult = checkSum.getCRC4Table(params.getTableName());
+//                long masterCRCResult = Long.valueOf(params.getCrcResult());
+//                if(myCRCResult != masterCRCResult){
+//                    String masterAddr = zookeeper.getMasterAddr();
+//                    zookeeper.CopyFromRemoteTable(masterAddr, params.getTableName());
+//                }
+//            }
         }catch (Exception e){
-            e.printStackTrace();
-            logger.error("Error: Region Server update table failed.");
+            logger.warn("Warning: Region Server update table failed.");
             res.put("status", "500");
             res.put("msg", "Update table failed");
             return res;

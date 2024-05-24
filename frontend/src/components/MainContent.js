@@ -192,6 +192,7 @@ const MainContent = () => {
                                     });
                                 });
 
+                                const existingRows = new Set();
                                 Promise.all(requests)
                                     .then(responses => {
                                         let allMsg = 'Success!';
@@ -218,10 +219,11 @@ const MainContent = () => {
                                         if (type === 'QUERY' && allStatus === '200') {
                                             const newColumns = [];
                                             const newDataSource = [];
+                                            console.log(responses);
+                                            let name = "";
 
                                             responses.forEach(response => {
                                                 const { status, msg, ...data } = response.data;
-                                                console.log(response.data);
                                                 if (status === '200') {
                                                     Object.keys(data).forEach(key => {
                                                         if (key === 'Column Name' && !newColumns.length) {
@@ -236,12 +238,12 @@ const MainContent = () => {
                                                         }
                                                     });
                                                     console.log(newColumns);
+                                                    console.log(data);
 
-                                                    const existingRows = new Map();
                                                     Object.keys(data).forEach(key => {
                                                         if (key !== 'Column Name') {
                                                             const rowKey = key.match(/\d+/)[0];
-                                                            if (!existingRows.has(rowKey)) {
+                                                            if (!existingRows.has(key)) {
                                                                 const rowData = data[key].split(" ");
                                                                 const rowObject = { key: rowKey };
                                                                 rowData.forEach((value, index) => {
@@ -249,15 +251,18 @@ const MainContent = () => {
                                                                     rowObject[columnName] = value;
                                                                 });
                                                                 newDataSource.push(rowObject);
-                                                                existingRows.set(rowKey, true);
+                                                                name = newColumns[0].dataIndex;
+                                                                console.log(name);
+                                                                existingRows.add(rowObject[name]);
                                                             }
                                                         }
                                                     });
                                                 }
                                             });
 
+                                            console.log(name);
                                             newDataSource.sort((a, b) => {
-                                                return a.key - b.key;
+                                                return a[name] - b[name];
                                             });
 
                                             setColumns(newColumns);
