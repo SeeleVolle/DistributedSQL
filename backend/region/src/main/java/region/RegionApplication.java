@@ -343,7 +343,7 @@ public class RegionApplication {
                     long masterCRCResult = Long.valueOf(params.getCrcResult());
                     if(myCRCResult != masterCRCResult){
                         String masterAddr = zookeeper.getMasterAddr();
-                        zookeeper.CopyFromRemoteTable(masterAddr, params.getTableName());
+                        zookeeper.CopyFromRem   oteTable(masterAddr, params.getTableName());
                     }
                 }
             }catch (Exception e){
@@ -366,32 +366,21 @@ public class RegionApplication {
         return res;
     }
 
-    public void executeSQLUpdated(String sql){
-        try{
+    public void executeSQLUpdated(String sql) throws SQLException {
             Connection conn = databaseConnection.getConnection();
             logger.info("SQL Executed: " + sql);
             //SQL注入风险，不管了。。
             PreparedStatement ps = conn.prepareStatement(sql);
             ps.executeUpdate();
-        }catch (Exception e){
-            e.printStackTrace();
-            logger.error("Error: Region Server execute sql failed.");
-        }
     }
 
-    public ResultSet executeSQLQuery(String sql){
-        try{
-            Connection conn = databaseConnection.getConnection();
-            logger.info("SQL Executed: " + sql);
-            //SQL注入风险，不管了。。
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ResultSet rs = ps.executeQuery();
-            return rs;
-        }catch (Exception e){
-            e.printStackTrace();
-            logger.error("Error: Region Server execute sql failed.");
-        }
-        return null;
+    public ResultSet executeSQLQuery(String sql) throws SQLException{
+        Connection conn = databaseConnection.getConnection();
+        logger.info("SQL Executed: " + sql);
+        //SQL注入风险，不管了。。
+        PreparedStatement ps = conn.prepareStatement(sql);
+        ResultSet rs = ps.executeQuery();
+        return rs;
     }
 
     public void forward(String sql,  String type, String tableName, long myCRCResult){
@@ -524,9 +513,9 @@ public class RegionApplication {
     @RequestMapping("/votequery")
     public JSONObject  votequery(@RequestBody SQLParams params){
         JSONObject res = new JSONObject();
-        ResultSet rs = executeSQLQuery(params.getSql());
-        CheckSum checkSum = new CheckSum(databaseConnection);
         try{
+            ResultSet rs = executeSQLQuery(params.getSql());
+            CheckSum checkSum = new CheckSum(databaseConnection);
             res.put("CRCResult", checkSum.getCRC4ResultSet(rs));
         }catch(Exception e){
             res.put("status",  "500");

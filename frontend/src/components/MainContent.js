@@ -220,6 +220,7 @@ const MainContent = () => {
                                             const newColumns = [];
                                             const newDataSource = [];
                                             console.log(responses);
+                                            let name = "";
 
                                             responses.forEach(response => {
                                                 const { status, msg, ...data } = response.data;
@@ -250,15 +251,18 @@ const MainContent = () => {
                                                                     rowObject[columnName] = value;
                                                                 });
                                                                 newDataSource.push(rowObject);
-                                                                existingRows.add(key);
+                                                                name = newColumns[0].dataIndex;
+                                                                console.log(name);
+                                                                existingRows.add(rowObject[name]);
                                                             }
                                                         }
                                                     });
                                                 }
                                             });
 
+                                            console.log(name);
                                             newDataSource.sort((a, b) => {
-                                                return a.key - b.key;
+                                                return a[name] - b[name];
                                             });
 
                                             setColumns(newColumns);
