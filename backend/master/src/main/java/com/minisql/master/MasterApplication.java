@@ -170,11 +170,12 @@ public class MasterApplication {
             } else {
                 logger.info("No max region found");
             }
-
+            if (maxRegion != null && minRegion != null) {
+                logger.info("Max region is region{} with visit count {}, min region is region{} with visit count {}", maxRegion.getRegionId(), max, minRegion.getRegionId(), min);
+            }
             // 符合热点迁移条件，将Max Region中的半数数据表迁移至Min Region
             if ((maxRegion != null && minRegion != null) && (writableRegionCount >= 2 && max > 2 * min && max > MAX_HOTPOINT_THRESHOLD && min > MIN_HOTPOINT_THRESHOLD)) {
                 logger.info("Hot point found, synchronising...");
-                logger.info("Max region is {} with visit count {}, min region is {} with visit count {}", maxRegion.getRegionId(), max, minRegion.getRegionId(), min);
                 Set<Metadata.RegionMetadata.Table> tablesToMove = maxRegion.getTables();
                 String
                         maxRegionHostName = maxRegion.getMaster().replaceFirst(":[0-9]+", ":" + Configs.REGION_SERVER_PORT),
